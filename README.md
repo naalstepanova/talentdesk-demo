@@ -2,7 +2,7 @@
 
 Interactive demo of a hiring tracker built on Microsoft 365. All people and data are fictional.
 
-Open `index.html` in a browser, or publish it with GitHub Pages (Settings > Pages > Deploy from a branch > main, root).
+Open `index.html` in a browser.
 Excel and PDF features load two small libraries from cdnjs, so they need an internet connection.
 
 ## Try this
