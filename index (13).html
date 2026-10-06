@@ -1,0 +1,1247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Hireboard demo</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.0/jspdf.plugin.autotable.min.js"></script>
+<style>
+:root{
+  /* Brand book: warm white 60 / ink 25 / orange 10 / pink 5 */
+  --orange:#FF743D;--pink:#F5A6C8;--ink-c:#272334;--warm:#FFF8F2;--berry:#743354;
+  --paper:#FFF8F2;--surface:#FFFFFF;--soft:#FBF3EC;--ink:#272334;--muted:#615B70;--line:#EADFD6;
+  --bad:#B23A3A;--radius:8px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root{--paper:#1E1B28;--surface:#272334;--soft:#2E2A3C;--ink:#FFF8F2;--muted:#B7AFC2;--line:#3A3449;--bad:#FF8A80;color-scheme:dark}
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5;font-variant-numeric:tabular-nums;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+.wrap{max-width:1240px;margin:0 auto;padding:0 20px}
+.hidden{display:none !important}
+
+/* Header */
+.top{background:var(--ink-c);color:var(--warm);position:sticky;top:0;z-index:5}
+.top .wrap{display:flex;align-items:center;gap:16px;min-height:64px;flex-wrap:wrap;padding-top:8px;padding-bottom:8px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:19px;letter-spacing:-.01em}
+.mark{width:28px;height:28px;display:grid;grid-template-columns:repeat(3,1fr);gap:3px;flex:none}
+.mark i{background:var(--warm);border-radius:2px;opacity:.25}
+.mark i:nth-child(1),.mark i:nth-child(5),.mark i:nth-child(9){background:var(--orange);opacity:1}
+.mark i:nth-child(2),.mark i:nth-child(6){background:var(--pink);opacity:1}
+.co{color:#CFC8D8;font-weight:500;font-size:14px}
+.demo-chip{font-size:12.5px;color:#CFC8D8;border:1px dashed #5A5370;border-radius:999px;padding:3px 10px}
+.persona{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:14px;color:#CFC8D8}
+.persona select{border:1px solid #5A5370;background:#332E44;color:var(--warm);border-radius:8px;padding:7px 10px;max-width:260px}
+
+/* Tabs */
+.tabs{display:flex;gap:4px;overflow-x:auto;padding-top:16px}
+.tab{border:0;background:transparent;padding:9px 14px;border-radius:8px;cursor:pointer;color:var(--muted);font-weight:500;white-space:nowrap}
+.tab:hover{background:var(--surface);color:var(--ink)}
+.tab[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:inset 0 -3px 0 var(--orange)}
+.tab svg{display:none;width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round}
+.tab .short{display:none}
+.badge{display:inline-block;min-width:20px;padding:0 6px;margin-left:6px;border-radius:999px;background:var(--orange);color:var(--ink-c);font-weight:600;font-size:12px;line-height:20px;text-align:center}
+
+main{padding:24px 0 64px}
+h1{font-size:32px;line-height:1.2;margin:0 0 4px;letter-spacing:-.015em}
+h2{font-size:17px;margin:0 0 12px}
+h3{font-size:14px;margin:0 0 8px}
+.sub{color:var(--muted);margin:0 0 20px;max-width:70ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:20px}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 14px;border-radius:8px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:var(--ink-c);font-weight:600}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.dark{background:var(--ink-c);border-color:var(--ink-c);color:var(--warm)}
+.btn.small{padding:4px 10px;font-size:13.5px}
+.btn.danger{color:var(--bad)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.hint{font-size:12.5px;color:var(--muted)}
+.empty{color:var(--muted);padding:28px 0;text-align:center}
+.page-head{margin-bottom:18px}
+
+/* Status badge */
+.sb{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;white-space:nowrap;padding:2px 10px 2px 8px;border-radius:999px;background:var(--soft);border:1px solid var(--line)}
+.sb i{width:8px;height:8px;border-radius:50%;flex:none}
+.fit{font-weight:600}
+.fit small{font-weight:400;color:var(--muted)}
+
+/* Filters */
+.lists{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.lists button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;cursor:pointer;font-size:14px}
+.lists button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.lists button b{font-weight:600;margin-left:4px;opacity:.7}
+.filters{display:grid;grid-template-columns:2fr repeat(3,1fr);gap:10px;margin-bottom:14px}
+.filters input,.filters select{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.filters.three{grid-template-columns:2fr 1fr 1fr}
+.bulk{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--ink-c);color:var(--warm);border-radius:8px;padding:8px 12px;margin-bottom:12px}
+.bulk select{border:1px solid #5A5370;background:#332E44;color:var(--warm);border-radius:6px;padding:5px 8px}
+
+/* Candidate table */
+.tbl-scroll{overflow-x:auto}
+table.tbl{width:100%;border-collapse:collapse;font-size:14px}
+.tbl th{text-align:left;font-weight:600;font-size:12.5px;color:var(--muted);padding:10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+.tbl tbody tr{cursor:pointer}
+.tbl tbody tr:hover td{background:var(--soft)}
+.tbl tr.sel td{background:#FFEDE4}
+@media (prefers-color-scheme:dark){.tbl tr.sel td{background:#3A2E3A}}
+.tbl .nm{font-weight:600}
+.tbl .em{font-size:12.5px;color:var(--muted)}
+.tbl input[type=checkbox]{width:16px;height:16px;cursor:pointer}
+.ccards{display:none}
+.ccard{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:14px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.ccard:last-child{border-bottom:0}
+.ccard .nm{font-weight:600}
+.ccard .m{font-size:13px;color:var(--muted)}
+.ccard .bot{grid-column:2;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* Board */
+.board{display:grid;grid-auto-flow:column;grid-auto-columns:250px;gap:12px;overflow-x:auto;padding-bottom:12px;align-items:start}
+.col{background:var(--soft);border:1px solid var(--line);border-radius:var(--radius);padding:10px;min-height:160px}
+.col.over{outline:2px dashed var(--orange);outline-offset:-2px}
+.col h3{display:flex;align-items:center;gap:8px;margin:2px 4px 10px}
+.col h3 i{width:9px;height:9px;border-radius:50%}
+.col h3 span{margin-left:auto;font-weight:500;color:var(--muted)}
+.kc{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:8px;cursor:pointer}
+.kc:hover{border-color:var(--muted)}
+.kc[draggable="true"]{cursor:grab}
+.kc .nm{font-weight:600;font-size:14px}
+.kc .m{font-size:12.5px;color:var(--muted)}
+.kc .tags{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.tag{font-size:11.5px;padding:1px 8px;border-radius:999px;background:var(--soft);border:1px solid var(--line);color:var(--muted)}
+.tag.fitg{background:var(--pink);border-color:var(--pink);color:var(--ink-c)}
+
+/* Reports */
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px}
+.kpi b{display:block;font-size:34px;line-height:1.1;letter-spacing:-.02em}
+.kpi span{font-size:13px;color:var(--muted)}
+.kpi.feature{background:var(--pink);border-color:var(--pink);color:var(--ink-c)}
+.kpi.feature span{color:var(--ink-c)}
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.funnel .fr{display:grid;grid-template-columns:130px 1fr 48px;gap:12px;align-items:center;padding:6px 0;font-size:14px}
+.rgrid>*{min-width:0}
+.funnel .fr>*{min-width:0}
+.funnel .track{height:22px;background:var(--soft);border-radius:4px;overflow:hidden}
+.funnel .fill{height:100%;background:var(--berry);border-radius:4px}
+.funnel .fr:last-child .fill{background:var(--orange)}
+.funnel .pc{text-align:right;color:var(--muted);font-size:13px}
+.weeks{display:flex;align-items:flex-end;gap:8px;height:170px;padding-top:10px}
+.weeks .w{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+.weeks .w b{font-size:12px;font-weight:600}
+.weeks .w .bar{width:100%;max-width:34px;background:var(--berry);border-radius:4px 4px 0 0;min-height:2px}
+.weeks .w:last-child .bar{background:var(--orange)}
+.weeks .w span{font-size:11px;color:var(--muted);white-space:nowrap}
+.stack{display:flex;height:16px;border-radius:6px;overflow:hidden;margin:6px 0 12px}
+.stack span{display:block;height:100%}
+.keys{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.keys span{display:inline-flex;align-items:center;gap:6px}
+.keys i{width:9px;height:9px;border-radius:50%}
+.mini{width:100%;border-collapse:collapse;font-size:14px}
+.mini th{text-align:left;font-size:12.5px;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line)}
+.mini td{padding:8px;border-bottom:1px solid var(--line)}
+.mini td.num,.mini th.num{text-align:right}
+.conv{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.conv .t{width:60px;height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.conv .t i{display:block;height:100%;background:var(--orange)}
+
+/* Emails */
+.mail{border-bottom:1px solid var(--line);padding:12px 0}
+.mail:last-child{border-bottom:0}
+.mail summary{cursor:pointer;list-style:none;display:grid;grid-template-columns:150px 1fr auto;gap:12px;align-items:baseline}
+.mail summary::-webkit-details-marker{display:none}
+.mail .ts{font-size:13px;color:var(--muted)}
+.mail .sj{font-weight:600}
+.mail .to{font-size:13px;color:var(--muted)}
+.mail pre{white-space:pre-wrap;font:inherit;font-size:14px;background:var(--soft);border-radius:8px;padding:12px 14px;margin:10px 0 0}
+
+/* Drawer */
+.scrim{position:fixed;inset:0;background:rgba(39,35,52,.55);z-index:10}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(580px,100%);background:var(--surface);z-index:11;overflow:auto;border-left:1px solid var(--line);
+  padding:calc(20px + env(safe-area-inset-top,0px)) 24px calc(32px + env(safe-area-inset-bottom,0px))}
+.dh{display:flex;align-items:flex-start;gap:12px;margin-bottom:14px}
+.dh h2{font-size:22px;margin:0}
+.dh .x{margin-left:auto}
+.sec{border-top:1px solid var(--line);padding:16px 0}
+.stogs{display:flex;flex-wrap:wrap;gap:6px}
+.stog{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:13px;cursor:pointer}
+.stog i{width:8px;height:8px;border-radius:50%}
+.stog[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.facts{display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-size:14px}
+.facts dt{color:var(--muted)}
+.facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.facts select{max-width:100%;border:1px solid var(--line);background:var(--soft);border-radius:6px;padding:3px 6px}
+.linkish{background:none;border:0;padding:0;color:var(--ink);text-decoration:underline;text-decoration-color:var(--orange);text-decoration-thickness:2px;text-underline-offset:3px;cursor:pointer}
+.banner{background:var(--pink);color:var(--ink-c);border-radius:8px;padding:10px 12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:14px}
+.banner .btn{border-color:var(--ink-c)}
+.dims{display:grid;gap:8px;margin:10px 0}
+.dim{display:grid;grid-template-columns:110px 1fr 34px;gap:10px;align-items:center;font-size:13.5px}
+.dim .track{height:8px;background:var(--soft);border-radius:4px;overflow:hidden}
+.dim .track i{display:block;height:100%;background:var(--berry)}
+.dim b{text-align:right}
+.probes{margin:8px 0 0;padding-left:18px;font-size:14px}
+.probes li{margin-bottom:4px}
+.ngroup{margin-bottom:12px}
+.ngroup h3{font-size:13px;color:var(--muted)}
+.note{background:var(--soft);border-radius:8px;padding:10px 12px;margin-bottom:6px;font-size:14px}
+.note .by{font-size:12px;color:var(--muted);margin-top:4px}
+.addnote{display:grid;gap:8px;margin-top:8px}
+.addnote textarea,.addnote select{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.hist{list-style:none;margin:0;padding:0;font-size:13.5px}
+.hist li{display:flex;gap:10px;padding:4px 0;color:var(--muted)}
+.hist li b{color:var(--ink);font-weight:500}
+
+/* Modal */
+.mscrim{position:fixed;inset:0;background:rgba(39,35,52,.55);display:grid;place-items:center;padding:16px;z-index:20}
+.modal{background:var(--surface);border-radius:12px;width:min(560px,100%);max-height:calc(100% - 32px);overflow:auto;padding:22px;border:1px solid var(--line)}
+.modal h2{font-size:19px}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.field label,.field .lbl{font-size:13px;font-weight:600;color:var(--muted)}
+.field input,.field select,.field textarea{border:1px solid var(--line);background:var(--paper);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.field textarea{min-height:200px;resize:vertical;line-height:1.5}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.two>*{min-width:0}
+.preview{background:var(--soft);border-radius:8px;padding:12px 14px;font-size:14px;margin-bottom:16px}
+.preview .err{color:var(--bad);font-weight:500}
+.reslist{margin:8px 0 0;padding-left:18px;font-size:14px}
+
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink-c);color:var(--warm);padding:10px 16px;border-radius:8px;font-size:14px;z-index:30;max-width:90vw}
+@media (prefers-reduced-motion:no-preference){
+  .toast{animation:pop .2s ease-out}@keyframes pop{from{opacity:0;transform:translate(-50%,6px)}}
+  .drawer.anim{animation:slide .22s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}
+}
+
+footer{color:var(--muted);font-size:13px;padding:24px 0 40px;border-top:1px solid var(--line)}
+footer a{color:var(--ink);text-decoration-color:var(--orange);text-decoration-thickness:2px;text-underline-offset:3px}
+.made{display:flex;align-items:center;gap:10px;margin-bottom:8px;color:var(--ink);font-weight:700}
+.made .mark i:not(:nth-child(1)):not(:nth-child(2)):not(:nth-child(5)):not(:nth-child(6)):not(:nth-child(9)){background:var(--ink)}
+.made .tag2{font-weight:400;color:var(--muted)}
+
+
+/* Dashboard */
+.stats5{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px}
+.scard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;text-align:left;color:inherit}
+.scard:hover{border-color:var(--muted)}
+.scard .l{font-size:13px;color:var(--muted);font-weight:500}
+.scard b{display:block;font-size:30px;line-height:1.15;letter-spacing:-.02em;margin:2px 0}
+.scard .h{font-size:12px;color:var(--muted)}
+.scard.hl{background:var(--pink);border-color:var(--pink);color:var(--ink-c)}
+.scard.hl .l,.scard.hl .h{color:var(--ink-c)}
+.depts{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.dcard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;cursor:pointer;text-align:left;color:inherit}
+.dcard:hover{border-color:var(--muted)}
+.dcard h3{font-size:15px;margin:0}
+.dcard p{margin:0;font-size:13px;color:var(--muted)}
+.dminis{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.dminis div{background:var(--soft);border-radius:6px;padding:6px 2px;text-align:center;font-size:11px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dminis b{display:block;font-size:16px;color:var(--ink)}
+.dsplit{display:grid;grid-template-columns:1.6fr 1fr;gap:16px}
+.recent{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.recent:last-child{border-bottom:0}
+.recent .nm{font-weight:600;font-size:14px}
+.recent .m{font-size:12.5px;color:var(--muted)}
+.pbar{margin-bottom:10px}
+.pbar .lab{display:flex;justify-content:space-between;font-size:13px;margin-bottom:4px}
+.pbar .t{height:6px;background:var(--soft);border-radius:3px;overflow:hidden}
+.pbar .t i{display:block;height:100%;border-radius:3px}
+
+/* Stars */
+.stars{display:inline-flex;gap:2px}
+.stars button{border:0;background:none;padding:2px;cursor:pointer;font-size:24px;line-height:1;color:var(--line)}
+.stars button.on{color:var(--orange)}
+.srate{color:var(--orange);letter-spacing:1px;white-space:nowrap}
+.srate .off{color:var(--line)}
+
+/* Filters and periods */
+.chipx{display:inline-flex;gap:4px;align-items:center;background:var(--ink);color:var(--paper);border-radius:999px;padding:4px 4px 4px 12px;font-size:13px;margin-bottom:12px}
+.chipx button{border:0;background:transparent;color:inherit;cursor:pointer;font-size:15px;padding:0 8px}
+.range{display:inline-flex;gap:6px;align-items:center;font-size:13px;color:var(--muted)}
+.range input{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:5px 8px;min-width:0}
+
+/* Import and assessment */
+.drop{display:block;border:2px dashed var(--line);border-radius:10px;padding:22px;text-align:center;cursor:pointer;background:var(--soft);margin-bottom:12px}
+.drop:hover{border-color:var(--orange)}
+.drop input{display:none}
+.rec{display:inline-block;font-size:12px;font-weight:700;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--soft)}
+.rec.HIRE{background:var(--berry);color:var(--warm);border-color:var(--berry)}
+.rec.HOLD{background:var(--pink);color:var(--ink-c);border-color:var(--pink)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.grid2>*{min-width:0}
+.field .ok{color:var(--berry);font-weight:500}
+.paste textarea{min-height:120px;font-size:13px}
+
+/* Laptop and tablet */
+@media (max-width:1000px){
+  .stats5{grid-template-columns:repeat(3,1fr)}
+  .depts{grid-template-columns:repeat(2,1fr)}
+  .dsplit{grid-template-columns:1fr}
+  .rgrid{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+}
+/* Small tablet and phone: cards instead of the wide table */
+@media (max-width:720px){
+  .tbl-scroll{display:none}
+  .ccards{display:block}
+  .filters,.filters.three{grid-template-columns:1fr 1fr}
+  .filters .q{grid-column:1/-1}
+}
+/* Phone */
+@media (max-width:640px){
+  input,select,textarea{font-size:16px !important}
+  .wrap{padding:0 16px}
+  .top .wrap{gap:8px 12px;min-height:0;padding-top:10px;padding-bottom:10px}
+  .co{display:none}
+  .demo-chip{margin-left:auto;font-size:11.5px}
+  .persona{width:100%;margin-left:0}
+  .persona select{flex:1;max-width:none;min-width:0;width:100%}
+
+  .tabs{position:fixed;left:0;right:0;bottom:0;z-index:6;background:var(--ink-c);padding:4px 4px calc(4px + env(safe-area-inset-bottom,0px));gap:0;overflow:visible}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 2px 6px;border-radius:0;color:#CFC8D8;font-size:11.5px;position:relative}
+  .tab:hover{background:transparent;color:var(--warm)}
+  .tab[aria-selected="true"]{background:transparent;color:var(--warm);box-shadow:inset 0 3px 0 var(--orange)}
+  .tab svg{display:block}
+  .tab .long{display:none}
+  .tab .short{display:inline}
+  .tab .badge{position:absolute;top:3px;left:calc(50% + 6px);margin:0;min-width:18px;line-height:18px;font-size:11px}
+
+  main{padding:20px 0 24px}
+  footer{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom,0px))}
+  h1{font-size:28px}
+  .page-head .spacer{display:none}
+  .page-head .acts{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .page-head .acts .btn{padding:11px 8px}
+  .page-head .acts .btn.primary{grid-column:1/-1}
+  .stats5{grid-template-columns:repeat(2,1fr)}
+  .depts{grid-template-columns:1fr}
+  .stats5 .scard:first-child{grid-column:1/-1}
+  .scard b{font-size:26px}
+  .stars button{font-size:28px}
+  .tab{font-size:10.5px}
+  .periods{flex-wrap:nowrap;overflow-x:auto}
+  .panel{padding:14px}
+  .lists{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px}
+  .lists button{white-space:nowrap}
+
+  .board{grid-auto-columns:82vw;scroll-snap-type:x mandatory;margin:0 -16px;padding:0 16px 12px}
+  .col{scroll-snap-align:start}
+
+  .kpi b{font-size:28px}
+  .funnel .fr{grid-template-columns:104px 1fr 40px;gap:8px}
+  .weeks{gap:4px}
+  .weeks .w span{font-size:10px}
+
+  .mail summary{grid-template-columns:1fr;gap:2px}
+  .conv .t{display:none}
+  .mini th,.mini td{padding:6px 5px}
+
+  .drawer{width:100%;border-left:0;padding-left:16px;padding-right:16px}
+  .facts{grid-template-columns:100px 1fr}
+  .dim{grid-template-columns:96px 1fr 30px}
+
+  .mscrim{place-items:end center;padding:0}
+  .modal{width:100%;max-height:92vh;border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+  .modal .row .spacer{display:none}
+  .modal .row .btn{flex:1;padding:12px}
+
+  .made{flex-wrap:wrap}
+  .made .tag2{flex-basis:100%}
+}
+@media (max-width:380px){.depts{grid-template-columns:1fr}.two{grid-template-columns:1fr}.filters,.filters.three{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* ============================================================
+   Settings for the demo. Change names here.
+   ============================================================ */
+const CONFIG = {
+  product: "Hireboard",
+  company: "Northwind Labs",               // fictional client
+  domain: "northwind-labs.example",
+  builtBy: "Natalia Stepanova",
+  consultancy: "YOUR BRAND",               // working name from the brand book
+  tagline: "Automation and operations consulting",
+  contact: "you@example.com"                // replace with your contact email
+};
+
+/* ---------- Helpers ---------- */
+const pad = n => String(n).padStart(2,"0");
+const D = s => Date.parse(s + "T00:00:00Z");
+const iso = t => new Date(t).toISOString().slice(0,10);
+const addDays = (s,n) => iso(D(s) + n*864e5);
+const daysBetween = (a,b) => Math.round((D(b)-D(a))/864e5);
+const now = new Date();
+const TODAY = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const plain = s => s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z]/g,"");
+const first = n => n.split(" ")[0];
+const stamp = () => { const d=new Date(); return `${TODAY} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function rng(seed){ return () => { seed|=0; seed=seed+0x6D2B79F5|0; let t=Math.imul(seed^seed>>>15,1|seed); t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+const R = rng(20261006);
+const pick = a => a[Math.floor(R()*a.length)];
+const wpick = pairs => { let r = R()*pairs.reduce((a,p)=>a+p[1],0); for(const p of pairs){ if((r-=p[1])<0) return p[0]; } return pairs[0][0]; };
+const randInt = (a,b) => a + Math.floor(R()*(b-a+1));
+
+/* ---------- Reference data ---------- */
+const USERS = [
+  {id:"ev", name:"Elena Varga", title:"People and Operations", noteCat:"screen"},
+  {id:"tr", name:"Tomás Ribeiro", title:"CEO", noteCat:"ceo"},
+  {id:"hw", name:"Hannah Weiss", title:"Engineering Lead", noteCat:"manager"},
+  {id:"dn", name:"Daniel Novak", title:"R&D Lead", noteCat:"manager"}
+];
+const U = id => USERS.find(u => u.id===id);
+const mailOf = name => `${plain(first(name))}.${plain(name.split(" ").slice(-1)[0])}@${CONFIG.domain}`;
+
+const ROLES = [
+  {id:"swe", title:"Senior Software Engineer", list:"open", manager:"hw", dept:"Engineering"},
+  {id:"emb", title:"Embedded Systems Engineer", list:"open", manager:"hw", dept:"Engineering"},
+  {id:"rs",  title:"Research Scientist, Cell Biology", list:"open", manager:"dn", dept:"R&D"},
+  {id:"bd",  title:"Business Development Manager", list:"open", manager:"tr", dept:"Commercial"},
+  {id:"ops", title:"Operations Coordinator", list:"open", manager:"ev", dept:"Operations"},
+  {id:"int", title:"Lab Internship 2027", list:"intern", manager:"dn", dept:"R&D"},
+  {id:"sp",  title:"Spontaneous application", list:"spont", manager:"ev", dept:null}
+];
+const DEPTS = ["Engineering","R&D","Commercial","Operations"];
+const ROLE = id => ROLES.find(r => r.id===id);
+const LISTS = [["open","Open roles"],["spont","Spontaneous"],["intern","Internships"],["all","All candidates"]];
+
+const STATUSES = [
+  {k:"new",       label:"New / Received",      color:"#A59DB3", stage:0},
+  {k:"screening", label:"Under Review",        color:"#F5A6C8", stage:1},
+  {k:"interview", label:"Interview Scheduled", color:"#FF743D", stage:2},
+  {k:"offer",     label:"Offer Extended",      color:"#C2577F", stage:3},
+  {k:"hired",     label:"Hired",               color:"#743354", stage:4},
+  {k:"declined",  label:"Offer Declined",      color:"#F2B48F"},
+  {k:"notnow",    label:"Good - Not Now",      color:"#6FA39B"},
+  {k:"rejected",  label:"Rejected",            color:"#D9CFC6"},
+  {k:"hold",      label:"On Hold",             color:"#B8AEA4"}
+];
+const ST = k => STATUSES.find(s => s.k===k);
+const ACTIVE = ["screening","interview","offer"];
+const REACHED_OFFER = ["offer","hired","declined"];
+const SOURCES = ["Website","LinkedIn","Employee referral","Recruiter","Email"];
+const NOTE_CATS = [["screen","Screen interview"],["manager","Manager notes"],["ceo","CEO"],["refs","References check"],["other","Other notes"]];
+const DIMS = ["Ownership","Collaboration","Curiosity","Resilience","Clarity"];
+const PROBES = {
+  Ownership:"Tell me about a project you drove without being asked.",
+  Collaboration:"Describe a disagreement with a colleague and how you resolved it.",
+  Curiosity:"What have you learned recently outside your own field?",
+  Resilience:"Tell me about a setback and what you changed afterwards.",
+  Clarity:"Explain a complex part of your work as you would to a new colleague."
+};
+const NOTE_TEXT = {
+  screen:["Clear communicator, motivated by the mission. Salary expectations within range.","Good first call. Strong fundamentals, less experience in regulated environments.","One month notice. Based in Luxembourg, no relocation needed.","Relocating from abroad, would need visa support. Strong background."],
+  manager:["Technical interview went well. Solid on system design, needs mentoring on testing.","Strong lab skills and well-structured answers. Recommend moving forward.","Good culture add. Some gaps in embedded C but learns quickly.","Impressive portfolio. Asked sharp questions about our roadmap."],
+  ceo:["Aligned on vision and expectations. Happy to proceed with an offer.","Good energy. Discussed equity and start date."],
+  refs:["Two references received, both very positive. Former manager would rehire."],
+  other:["Recommended by a team member.","Asked to be considered for future roles as well."]
+};
+
+/* ---------- Fake candidates ---------- */
+const FIRST = ["Sofia","Lukas","Inès","Mateusz","Aisha","Chiara","Rahul","Eva","Tomasz","Léa","Diego","Hana","Omar","Freya","Marco","Yuki","Nadia","Pieter","Camille","Arjun","Elif","Sven","Laura","Kofi","Anouk","Mihai","Sara","Felix","Zainab","Ingrid","Ravi","Noor","Hugo","Julia","Tiago","Mei","Oskar","Amélie","Leila","Matteo","Katarzyna","Samuel","Ana","Nikos"];
+const LAST = ["Schmitt","Moreau","Kowalski","Rossi","Hansen","Nguyen","Fernandes","Weber","Haddad","Jansen","Ferreira","Kaya","Petrov","Lindqvist","Bianchi","Dubois","Okafor","Meyer","Tanaka","Popescu","Hoffmann","Costa","Andersen","Rahman","Müller","Lopes","Wagner","Ricci","Martin","Ivanova","Kraus","Sato","Berg","Laurent","Kumar","Pereira","Fischer","Van Dijk"];
+const CITIES = ["Luxembourg","Esch-sur-Alzette","Metz","Trier","Brussels","Lisbon","Munich","Paris","Warsaw","Milan","Amsterdam","Remote, EU"];
+
+let NEXT = 1, offerN = 0;
+const OFFER_SOURCES = ["Employee referral","LinkedIn","Employee referral","Website","Recruiter","LinkedIn"];
+const usedNames = new Set();
+function makeName(){ let n; do { n = `${pick(FIRST)} ${pick(LAST)}`; } while(usedNames.has(n)); usedNames.add(n); return n; }
+
+function recFor(total){ return total>=75 ? "HIRE" : total>=60 ? "HOLD" : "PASS"; }
+function cultureFrom(scores, total, rec, date){
+  const low = [...DIMS].sort((a,b)=>scores[a]-scores[b]).slice(0,2);
+  return {state:"done", scores, total, rec: rec || recFor(total), date: date || TODAY, probes: low.map(d => PROBES[d])};
+}
+function makeCulture(date){
+  const scores = Object.fromEntries(DIMS.map(d => [d, randInt(52,96)]));
+  return cultureFrom(scores, Math.round(DIMS.reduce((a,d)=>a+scores[d],0)/DIMS.length), null, date);
+}
+function pathTo(status){
+  const order = ["new","screening","interview","offer","hired"];
+  if(order.includes(status)) return order.slice(0, order.indexOf(status)+1);
+  if(status==="rejected") return [...order.slice(0, randInt(1,3)), "rejected"];
+  if(status==="declined") return [...order.slice(0,4), "declined"];
+  if(status==="notnow") return [...order.slice(0,3), "notnow"];
+  return [...order.slice(0, randInt(2,3)), "hold"];
+}
+function makeCandidate(roleId, status, applied){
+  const name = makeName();
+  const path = pathTo(status);
+  const span = Math.max(1, daysBetween(applied, TODAY));
+  const history = path.map((s,i) => ({s, d: addDays(applied, Math.round(span*i/Math.max(path.length,2))), by: i? pick(USERS).name : "Careers form"}));
+  const c = {
+    id: NEXT++, name, email:`${plain(first(name))}.${plain(name.split(" ").slice(-1)[0])}@mail.example`,
+    phone:`+352 6${randInt(21,91)} ${randInt(100,999)} ${randInt(100,999)}`, city: pick(CITIES),
+    role: roleId, status, applied, source: wpick([["Website",40],["LinkedIn",30],["Employee referral",12],["Recruiter",8],["Email",10]]),
+    cv: `CV_${name.replace(/ /g,"_")}.pdf`, culture:{state:"none"}, notes:[], history,
+    dept: ROLE(roleId).dept || pick(DEPTS), rating: 0
+  };
+  const reached = s => path.includes(s);
+  if(reached("offer")) c.source = OFFER_SOURCES[offerN++ % OFFER_SOURCES.length];
+  const noteDate = i => history[Math.min(i, history.length-1)].d;
+  if(reached("screening")) c.notes.push({cat:"screen", by:"Elena Varga", ts:noteDate(1)+" 10:30", text:pick(NOTE_TEXT.screen)});
+  if(reached("interview")) { c.notes.push({cat:"manager", by:U(ROLE(roleId).manager).name, ts:noteDate(2)+" 15:10", text:pick(NOTE_TEXT.manager)}); c.culture = makeCulture(noteDate(2)); }
+  else if(reached("screening") && R()<.6) c.culture = {state:"sent", sent:noteDate(1)};
+  if(reached("offer")) c.notes.push({cat:"ceo", by:"Tomás Ribeiro", ts:noteDate(3)+" 11:00", text:pick(NOTE_TEXT.ceo)});
+  if(reached("hired")) c.notes.push({cat:"refs", by:"Elena Varga", ts:noteDate(4)+" 09:15", text:NOTE_TEXT.refs[0]});
+  if(["interview","offer","hired","declined","notnow"].includes(status)) c.rating = randInt(3,5);
+  else if(status==="screening" && R()<.4) c.rating = randInt(2,4);
+  if(c.source==="Employee referral") c.notes.push({cat:"other", by:"Elena Varga", ts:applied+" 09:00", text:NOTE_TEXT.other[0]});
+  return c;
+}
+function seed(){
+  const list = [];
+  const plan = {
+    swe:[["new",3],["screening",2],["interview",2],["offer",1],["rejected",3],["notnow",1]],
+    emb:[["new",2],["screening",1],["interview",2],["hired",1],["rejected",2]],
+    rs: [["new",2],["screening",2],["interview",1],["offer",1],["declined",1],["rejected",2],["hold",1]],
+    bd: [["new",2],["screening",1],["interview",1],["rejected",2],["hold",1]],
+    ops:[["new",2],["screening",1],["interview",1],["rejected",2]],
+    int:[["new",3],["screening",1],["interview",1],["hired",1],["rejected",1]],
+    sp: [["new",3],["notnow",2],["rejected",3]]
+  };
+  for(const [role, items] of Object.entries(plan)) for(const [st,n] of items) for(let i=0;i<n;i++){
+    const stage = ST(st).stage ?? 2;
+    const applied = st==="new" ? addDays(TODAY, -randInt(0,12)) : addDays(TODAY, -randInt(14 + stage*7, 60 + stage*6));
+    list.push(makeCandidate(role, st, applied));
+  }
+  // Emails waiting in the "CVs" inbox folder, used by the import demo
+  const incoming = [
+    {name:makeName(), role:"swe", source:"Email"},
+    {name:makeName(), role:"rs", source:"Email"},
+    {name:makeName(), role:"sp", source:"Email"}
+  ].map(x => ({...x, email:`${plain(first(x.name))}.${plain(x.name.split(" ").slice(-1)[0])}@mail.example`}));
+  const dupA = list.find(c => c.role==="swe" && c.status==="interview");
+  const dupB = list.find(c => c.role==="bd" && c.status==="new");
+  incoming.push({name:dupA.name, email:dupA.email, role:"emb", source:"Email"});
+  incoming.push({name:dupB.name, email:dupB.email, role:"bd", source:"Email"});
+  return {candidates:list, incoming};
+}
+
+/* ---------- State ---------- */
+const seeded = seed();
+let S = {
+  me:"ev", tab:"dash", candidates:seeded.candidates, incoming:seeded.incoming,
+  filters:{list:"open", q:"", role:"", status:"", source:"", dept:""}, rrole:"",
+  period:{k:"all", from:"", to:""}, star:{q:"", min:"1", dept:""},
+  selected:new Set(), openId:null, banner:null, modal:null,
+  emails:[
+    {ts:`${addDays(TODAY,-3)} 16:20`, from:mailOf("Elena Varga"), to:"Recent applicant", subject:"Interview for Senior Software Engineer at Northwind Labs", body:"(Earlier message, shown as an example.)"}
+  ]
+};
+const C = id => S.candidates.find(c => c.id===id);
+const ME = () => U(S.me);
+
+/* ---------- Filtering ---------- */
+function inList(c, list){ return list==="all" || ROLE(c.role).list===list; }
+function filtered(){
+  const f = S.filters, q = f.q.trim().toLowerCase();
+  return S.candidates.filter(c => inList(c,f.list)
+    && (!f.role || c.role===f.role) && (!f.source || c.source===f.source) && (!f.dept || c.dept===f.dept)
+    && (!f.status || (f.status==="progress" ? ["screening","interview"].includes(c.status) : c.status===f.status))
+    && (!q || (c.name+" "+c.email+" "+ROLE(c.role).title+" "+c.city).toLowerCase().includes(q)))
+    .sort((a,b) => b.applied.localeCompare(a.applied));
+}
+const starsHtml = n => n ? `<span class="srate" aria-label="${n} of 5 stars">${"★".repeat(n)}<span class="off">${"★".repeat(5-n)}</span></span>` : `<span class="hint">Not rated</span>`;
+
+/* ---------- Rendering ---------- */
+const app = document.getElementById("app");
+const ICONS = {
+  dash:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/>',
+  starred:'<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/>',
+  cands:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c1-3.5 3.5-5.5 6.5-5.5s5.5 2 6.5 5.5M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5c2 .7 3.2 2.6 3.5 5.5"/>',
+  board:'<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/>',
+  reports:'<path d="M4 20V10M10 20V4M16 20v-7M21 20H3"/>',
+  emails:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>'
+};
+const badge = k => `<span class="sb"><i style="background:${ST(k).color}"></i>${ST(k).label}</span>`;
+const fitHtml = c => c.culture.state==="done" ? `<span class="fit">${c.culture.total}<small>/100</small></span>` : (c.culture.state==="sent" ? `<span class="hint">Sent</span>` : `<span class="hint">Not sent</span>`);
+
+function render(){
+  const opening = S.anim, old = document.querySelector(".drawer"); S.dscroll = old ? old.scrollTop : null;
+  const ae = document.activeElement, keep = ae && ae.id ? {id:ae.id, pos:ae.selectionStart} : null;
+  const tabs = [["dash","Dashboard","Home"],["cands","Candidates","List"],["board","Pipeline","Pipeline"],["starred","Starred","Starred"],["reports","Reports","Reports"],["emails","Sent emails","Emails"]];
+  const fresh = S.candidates.filter(c => c.status==="new").length;
+  const rated = S.candidates.filter(c => c.rating>0).length;
+  const views = {dash:viewDash, cands:viewCands, board:viewBoard, starred:viewStarred, reports:viewReports, emails:viewEmails};
+  app.innerHTML = `
+  <header class="top"><div class="wrap">
+    <div class="brand"><span class="mark" aria-hidden="true">${"<i></i>".repeat(9)}</span>${esc(CONFIG.product)}</div>
+    <span class="co">${esc(CONFIG.company)}</span>
+    <span class="demo-chip">Demo with fictional data. Reload to reset.</span>
+    <label class="persona">Signed in as
+      <select data-act="persona">${USERS.map(u=>`<option value="${u.id}" ${u.id===S.me?"selected":""}>${esc(u.name)}, ${esc(u.title)}</option>`).join("")}</select>
+    </label>
+  </div></header>
+  <div class="wrap">
+    <nav class="tabs" role="tablist">
+      ${tabs.map(([k,l,sh]) => `<button class="tab" role="tab" data-act="tab" data-k="${k}" aria-selected="${S.tab===k}" aria-label="${l}"><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k]}</svg><span class="long">${l}</span><span class="short">${sh}</span>${k==="cands"&&fresh?`<span class="badge" title="New candidates">${fresh}</span>`:""}${k==="starred"&&rated?`<span class="badge" title="Rated candidates">${rated}</span>`:""}</button>`).join("")}
+    </nav>
+    <main>${views[S.tab]()}</main>
+    <footer>
+      <div class="made"><span class="mark" aria-hidden="true">${"<i></i>".repeat(9)}</span>${esc(CONFIG.consultancy)} <span class="tag2">${esc(CONFIG.tagline)}</span></div>
+      ${esc(CONFIG.product)} runs on Microsoft 365: sign-in with Microsoft accounts, candidates in a SharePoint list, emails sent from your own Outlook mailbox.
+      Designed and built by ${esc(CONFIG.builtBy)}. Want software that fits the way your team works? <a href="mailto:${esc(CONFIG.contact)}">${esc(CONFIG.contact)}</a>
+    </footer>
+  </div>
+  ${S.openId ? drawerHtml(C(S.openId)) : ""}
+  ${S.modal ? modalHtml() : ""}`;
+  S.anim = false;
+  document.body.style.overflow = (S.openId || S.modal) ? "hidden" : "";
+  const dr = document.querySelector(".drawer"); if(dr && S.dscroll!=null && !opening) dr.scrollTop = S.dscroll;
+  if(keep){ const el = document.getElementById(keep.id); if(el){ el.focus(); try{ el.setSelectionRange(keep.pos,keep.pos); }catch(e){} } }
+  if(S.modal) syncModal();
+}
+
+function filterBar(withStatus=true){
+  const f = S.filters;
+  const count = l => S.candidates.filter(c => inList(c,l)).length;
+  return `
+  ${f.dept?`<div class="chipx">Department: ${esc(f.dept)}<button data-act="clear-dept" aria-label="Clear department filter">✕</button></div>`:""}
+  <div class="lists">${LISTS.map(([k,l])=>`<button data-act="list" data-k="${k}" aria-pressed="${f.list===k}">${l}<b>${count(k)}</b></button>`).join("")}</div>
+  <div class="filters${withStatus?"":" three"}">
+    <input class="q" id="f-q" type="search" placeholder="Search name, email, role or city" value="${esc(f.q)}" aria-label="Search candidates">
+    <select id="f-role" aria-label="Role"><option value="">All roles</option>${ROLES.filter(r=>inList({role:r.id},f.list)).map(r=>`<option value="${r.id}" ${f.role===r.id?"selected":""}>${esc(r.title)}</option>`).join("")}</select>
+    ${withStatus?`<select id="f-status" aria-label="Status"><option value="">All statuses</option><option value="progress" ${f.status==="progress"?"selected":""}>In progress (review or interview)</option>${STATUSES.map(s=>`<option value="${s.k}" ${f.status===s.k?"selected":""}>${s.label}</option>`).join("")}</select>`:""}
+    <select id="f-source" aria-label="Source"><option value="">All sources</option>${SOURCES.map(s=>`<option ${f.source===s?"selected":""}>${s}</option>`).join("")}</select>
+  </div>`;
+}
+
+function viewCands(){
+  const list = filtered();
+  const sel = [...S.selected].filter(id => list.some(c=>c.id===id));
+  const allSel = list.length && sel.length===list.length;
+  const rows = list.map(c => `<tr data-act="open" data-id="${c.id}" class="${S.selected.has(c.id)?"sel":""}">
+      <td><input type="checkbox" data-act="sel" data-id="${c.id}" ${S.selected.has(c.id)?"checked":""} aria-label="Select ${esc(c.name)}"></td>
+      <td><div class="nm">${esc(c.name)}</div><div class="em">${esc(c.email)}</div></td>
+      <td>${esc(ROLE(c.role).title)}</td>
+      <td>${badge(c.status)}</td>
+      <td>${starsHtml(c.rating)}</td>
+      <td>${c.source}</td>
+      <td>${c.applied}</td>
+      <td>${fitHtml(c)}</td>
+    </tr>`).join("");
+  const cards = list.map(c => `<div class="ccard" data-act="open" data-id="${c.id}">
+      <input type="checkbox" data-act="sel" data-id="${c.id}" ${S.selected.has(c.id)?"checked":""} aria-label="Select ${esc(c.name)}">
+      <div><div class="nm">${esc(c.name)}</div><div class="m">${esc(ROLE(c.role).title)}. Applied ${c.applied} via ${c.source}</div></div>
+      <div class="bot">${badge(c.status)}${c.rating?starsHtml(c.rating):""}<span class="m">Culture fit: ${fitHtml(c)}</span></div>
+    </div>`).join("");
+  return `
+  <div class="row page-head">
+    <div><h1>Candidates</h1><p class="sub" style="margin:0">Every applicant in one list, whether they came from the careers page, LinkedIn or a direct email.</p></div>
+    <span class="spacer"></span>
+    <div class="row acts"><button class="btn" data-act="import">Check inbox for CVs</button><button class="btn" data-act="xl-open">Import from Excel</button><button class="btn primary" data-act="add">Add candidate</button></div>
+  </div>
+  ${filterBar()}
+  ${sel.length?`<div class="bulk"><b>${sel.length} selected</b><span class="spacer"></span>
+    <label class="row" style="gap:8px">Set status <select id="bulk-status">${STATUSES.map(s=>`<option value="${s.k}">${s.label}</option>`).join("")}</select></label>
+    <button class="btn small primary" data-act="bulk-apply">Update ${sel.length}</button><button class="btn small" data-act="bulk-clear" style="background:transparent;color:inherit;border-color:#5A5370">Clear</button></div>`:""}
+  <section class="panel" style="padding-top:6px;padding-bottom:6px">
+    ${list.length ? `<div class="tbl-scroll"><table class="tbl">
+      <thead><tr><th><input type="checkbox" data-act="sel-all" ${allSel?"checked":""} aria-label="Select all"></th><th>Candidate</th><th>Role</th><th>Status</th><th>Rating</th><th>Source</th><th>Applied</th><th>Culture fit</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <div class="ccards">${cards}</div>`
+    : `<div class="empty">No candidates match these filters. Clear the search or pick another list.</div>`}
+  </section>
+  <p class="hint" style="margin-top:10px">${list.length} of ${S.candidates.length} candidates shown.</p>`;
+}
+
+function viewBoard(){
+  const list = filtered();
+  return `
+  <div class="page-head"><h1>Pipeline</h1><p class="sub" style="margin:0">Drag a card to another column to change its status, or open it for details.</p></div>
+  ${filterBar(false)}
+  <div class="board">
+    ${STATUSES.map(s => {
+      const items = list.filter(c => c.status===s.k);
+      return `<section class="col" data-drop="${s.k}" aria-label="${s.label}">
+        <h3><i style="background:${s.color}"></i>${s.label}<span>${items.length}</span></h3>
+        ${items.map(c => `<div class="kc" draggable="true" data-act="open" data-id="${c.id}">
+          <div class="nm">${esc(c.name)}</div>
+          <div class="m">${esc(ROLE(c.role).title)}</div>
+          <div class="tags"><span class="tag">${c.source}</span><span class="tag">${daysBetween(c.applied,TODAY)} days</span>${c.culture.state==="done"?`<span class="tag fitg">Fit ${c.culture.total}</span>`:""}${c.rating?`<span class="tag" style="color:var(--orange)">${"★".repeat(c.rating)}</span>`:""}</div>
+        </div>`).join("") || `<div class="hint" style="padding:8px 4px">Nobody here.</div>`}
+      </section>`;
+    }).join("")}
+  </div>`;
+}
+
+function viewDash(){
+  const all = S.candidates, me = ME();
+  const cnt = k => all.filter(c=>c.status===k).length;
+  const cards = [
+    {l:"Total", v:all.length, h:"All candidates", k:""},
+    {l:"New / Received", v:cnt("new"), h:"Awaiting review", k:"new", hl:true},
+    {l:"In progress", v:cnt("screening")+cnt("interview"), h:"Active pipeline", k:"progress"},
+    {l:"Offers extended", v:cnt("offer"), h:"Pending response", k:"offer"},
+    {l:"Hired", v:cnt("hired"), h:"Accepted offers", k:"hired"}
+  ];
+  const max = Math.max(1, ...STATUSES.map(s=>cnt(s.k)));
+  const recent = [...all].sort((a,b)=>b.applied.localeCompare(a.applied) || b.id-a.id).slice(0,6);
+  return `
+  <div class="row page-head">
+    <div><h1>Welcome, ${esc(first(me.name))}</h1><p class="sub" style="margin:0">Where hiring stands today, across every role and department.</p></div>
+    <span class="spacer"></span>
+    <div class="row acts"><button class="btn primary" data-act="add">Add candidate</button></div>
+  </div>
+  <div class="stats5">${cards.map(c=>`<button class="scard${c.hl?" hl":""}" data-act="dash-status" data-k="${c.k}"><span class="l">${c.l}</span><b>${c.v}</b><span class="h">${c.h}</span></button>`).join("")}</div>
+  <div class="depts">${DEPTS.map(d=>{ const g = all.filter(c=>c.dept===d);
+    return `<button class="dcard" data-act="dash-dept" data-k="${esc(d)}"><h3>${esc(d)}</h3><p>${g.length} candidate${g.length===1?"":"s"}</p>
+      <div class="dminis">${STATUSES.slice(0,4).map((s,i)=>`<div title="${s.label}"><b>${g.filter(c=>c.status===s.k).length}</b>${["New","Review","Interview","Offer"][i]}</div>`).join("")}</div></button>`;}).join("")}</div>
+  <div class="dsplit">
+    <section class="panel"><h2>Recent applications</h2>
+      ${recent.map(c=>`<div class="recent" data-act="open" data-id="${c.id}"><div><div class="nm">${esc(c.name)}</div><div class="m">${esc(ROLE(c.role).title)}. ${esc(c.dept)}</div></div>${badge(c.status)}</div>`).join("")}
+    </section>
+    <section class="panel"><h2>Pipeline</h2>
+      ${STATUSES.map(s=>`<div class="pbar"><div class="lab"><span>${s.label}</span><b>${cnt(s.k)}</b></div><div class="t"><i style="width:${(cnt(s.k)/max*100).toFixed(1)}%;background:${s.color}"></i></div></div>`).join("")}
+    </section>
+  </div>`;
+}
+
+function viewStarred(){
+  const f = S.star, q = f.q.trim().toLowerCase();
+  const list = S.candidates.filter(c => c.rating>=+f.min && c.rating>0 && (!f.dept || c.dept===f.dept)
+    && (!q || (c.name+" "+c.email).toLowerCase().includes(q))).sort((a,b)=>b.rating-a.rating || b.applied.localeCompare(a.applied));
+  return `
+  <div class="page-head"><h1>Starred candidates</h1><p class="sub" style="margin:0">Your top-rated people across all roles, so strong runners-up are easy to find when a role opens.</p></div>
+  <div class="filters three">
+    <input class="q" id="s-q" type="search" placeholder="Search name or email" value="${esc(f.q)}" aria-label="Search starred candidates">
+    <select id="s-min" aria-label="Minimum rating">${[["1","Any rating"],["3","3 stars or more"],["4","4 stars or more"],["5","5 stars only"]].map(([v,l])=>`<option value="${v}" ${f.min===v?"selected":""}>${l}</option>`).join("")}</select>
+    <select id="s-dept" aria-label="Department"><option value="">All departments</option>${DEPTS.map(d=>`<option ${f.dept===d?"selected":""}>${esc(d)}</option>`).join("")}</select>
+  </div>
+  <section class="panel" style="padding-top:6px;padding-bottom:6px">
+    ${list.length ? `<div class="tbl-scroll"><table class="tbl">
+      <thead><tr><th>Candidate</th><th>Rating</th><th>Role</th><th>Department</th><th>Status</th><th>Applied</th></tr></thead>
+      <tbody>${list.map(c=>`<tr data-act="open" data-id="${c.id}"><td><div class="nm">${esc(c.name)}</div><div class="em">${esc(c.email)}</div></td><td>${starsHtml(c.rating)}</td><td>${esc(ROLE(c.role).title)}</td><td>${esc(c.dept)}</td><td>${badge(c.status)}</td><td>${c.applied}</td></tr>`).join("")}</tbody></table></div>
+      <div class="ccards">${list.map(c=>`<div class="ccard" data-act="open" data-id="${c.id}" style="grid-template-columns:1fr"><div><div class="nm">${esc(c.name)}</div><div class="m">${esc(ROLE(c.role).title)}. ${esc(c.dept)}</div></div><div class="bot" style="grid-column:1">${starsHtml(c.rating)}${badge(c.status)}</div></div>`).join("")}</div>`
+    : `<div class="empty">No starred candidates match. Open any candidate and click the stars to rate them.</div>`}
+  </section>`;
+}
+
+/* Report period */
+function periodRange(){
+  const p = S.period, y = TODAY.slice(0,4), m = +TODAY.slice(5,7);
+  const earliest = S.candidates.reduce((a,c)=>c.applied<a?c.applied:a, TODAY);
+  if(p.k==="ytd") return [`${y}-01-01`, TODAY, "Year to date"];
+  if(p.k==="qtd") return [`${y}-${pad(Math.floor((m-1)/3)*3+1)}-01`, TODAY, "Quarter to date"];
+  if(p.k==="90") return [addDays(TODAY,-89), TODAY, "Last 90 days"];
+  if(p.k==="30") return [addDays(TODAY,-29), TODAY, "Last 30 days"];
+  if(p.k==="custom") return [p.from||earliest, p.to||TODAY, "Custom period"];
+  return [earliest, TODAY, "All time"];
+}
+function reportData(){
+  const [from,to,label] = periodRange();
+  const pool = S.candidates.filter(c => (!S.rrole || c.role===S.rrole) && c.applied>=from && c.applied<=to);
+  const n = pool.length || 1;
+  const offered = c => c.history.some(h => REACHED_OFFER.includes(h.s));
+  const reachedStage = (c, st) => c.history.some(h => ST(h.s).stage >= st) || (st<=3 && c.history.some(h=>h.s==="declined"));
+  return {from, to, label, pool, n, offered,
+    funnel: [["Applied",0],["Under review",1],["Interview",2],["Offer",3],["Hired",4]].map(([l,st]) => [l, pool.filter(c=>reachedStage(c,st)).length]),
+    offers: pool.filter(offered).length, hired: pool.filter(c=>c.status==="hired").length,
+    active: pool.filter(c=>ACTIVE.includes(c.status)).length,
+    bySource: SOURCES.map(s => { const g = pool.filter(c=>c.source===s); const o = g.filter(offered).length; return [s, g.length, o, g.length? Math.round(o/g.length*100):0]; }),
+    byStatus: STATUSES.map(s => { const v = pool.filter(c=>c.status===s.k).length; return [s.label, v, Math.round(v/n*100)]; }),
+    byDept: DEPTS.map(d => { const g = pool.filter(c=>c.dept===d); return [d, g.length, g.filter(c=>ACTIVE.includes(c.status)).length, g.filter(offered).length, g.filter(c=>c.status==="hired").length]; }),
+    byStars: [5,4,3,2,1].map(k => [k, pool.filter(c=>c.rating===k).length])
+  };
+}
+function viewReports(){
+  const r = reportData(), {pool, n} = r;
+  const mon = addDays(TODAY, -((new Date(D(TODAY)).getUTCDay()+6)%7));
+  const weeks = Array.from({length:10},(_,i)=>addDays(mon,(i-9)*7)).map(w => [w, pool.filter(c => c.applied>=w && c.applied<addDays(w,7)).length]);
+  const wmax = Math.max(1, ...weeks.map(w=>w[1]));
+  const P = [["all","All time"],["ytd","YTD"],["qtd","QTD"],["90","Last 90 days"],["30","Last 30 days"],["custom","Custom"]];
+  return `
+  <div class="row page-head">
+    <div><h1>Hiring reports</h1><p class="sub" style="margin:0">Live numbers from the candidate list. ${esc(r.label)}: ${r.from} to ${r.to}.</p></div>
+    <span class="spacer"></span>
+    <div class="row acts"><button class="btn" data-act="export-pdf">Download PDF</button><button class="btn" data-act="export-xlsx">Download Excel</button></div>
+  </div>
+  <div class="lists periods">${P.map(([k,l])=>`<button data-act="period" data-k="${k}" aria-pressed="${S.period.k===k}">${l}</button>`).join("")}
+    ${S.period.k==="custom"?`<span class="range"><input type="date" id="p-from" value="${r.from}" aria-label="From"> to <input type="date" id="p-to" value="${r.to}" aria-label="To"></span>`:""}
+    <span class="spacer"></span>
+    <select id="r-role" aria-label="Role" style="border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 10px;max-width:100%"><option value="">All roles</option>${ROLES.map(x=>`<option value="${x.id}" ${S.rrole===x.id?"selected":""}>${esc(x.title)}</option>`).join("")}</select>
+  </div>
+  <div class="kpis">
+    <div class="kpi"><b>${pool.length}</b><span>Applicants</span></div>
+    <div class="kpi"><b>${r.active}</b><span>In process now</span></div>
+    <div class="kpi"><b>${r.offers}</b><span>Offers made</span></div>
+    <div class="kpi feature"><b>${r.hired}</b><span>Hired</span></div>
+  </div>
+  ${pool.length ? `<div class="rgrid">
+    <section class="panel funnel"><h2>Hiring funnel</h2>
+      ${r.funnel.map(([l,v])=>`<div class="fr"><span>${l} <b>${v}</b></span><div class="track"><div class="fill" style="width:${(v/n*100).toFixed(1)}%"></div></div><span class="pc">${Math.round(v/n*100)}%</span></div>`).join("")}
+    </section>
+    <section class="panel"><h2>New applicants per week</h2>
+      <div class="weeks">${weeks.map(([w,v])=>`<div class="w" title="Week of ${w}: ${v}"><b>${v}</b><div class="bar" style="height:${(v/wmax*120).toFixed(0)}px"></div><span>${w.slice(5)}</span></div>`).join("")}</div>
+    </section>
+    <section class="panel"><h2>Where good candidates come from</h2>
+      <div style="overflow-x:auto"><table class="mini"><thead><tr><th>Source</th><th class="num">Applicants</th><th class="num">Reached offer</th><th class="num">Conversion</th></tr></thead>
+      <tbody>${r.bySource.map(([s,a,o,p])=>`<tr><td>${s}</td><td class="num">${a}</td><td class="num">${o}</td><td class="num"><span class="conv"><span class="t"><i style="width:${p}%"></i></span>${p}%</span></td></tr>`).join("")}</tbody></table></div>
+      <p class="hint" style="margin:10px 0 0">Reached offer counts offers extended, accepted or declined.</p>
+    </section>
+    <section class="panel"><h2>Status mix</h2>
+      <div class="stack">${STATUSES.map(s=>{const v=pool.filter(c=>c.status===s.k).length; return v?`<span style="width:${v/n*100}%;background:${s.color}" title="${s.label}: ${v}"></span>`:"";}).join("")}</div>
+      <div class="keys">${STATUSES.map(s=>`<span><i style="background:${s.color}"></i>${s.label} ${pool.filter(c=>c.status===s.k).length}</span>`).join("")}</div>
+      <h2 style="margin-top:20px">By department</h2>
+      <div style="overflow-x:auto"><table class="mini"><thead><tr><th>Department</th><th class="num">Total</th><th class="num">Active</th><th class="num">Offers</th><th class="num">Hired</th></tr></thead>
+      <tbody>${r.byDept.map(x=>`<tr><td>${esc(x[0])}</td>${x.slice(1).map(v=>`<td class="num">${v}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    </section>
+  </div>` : `<section class="panel"><div class="empty">No applications in this period. Pick a longer period or another role.</div></section>`}`;
+}
+
+/* Exports */
+function fileStem(){ const r = reportData(); return `${CONFIG.company.replace(/\W+/g,"")}_HiringReport_${r.from}_to_${r.to}`; }
+function exportXlsx(){
+  if(!window.XLSX){ toast("The Excel library is still loading. Try again in a moment."); return; }
+  const r = reportData(), wb = XLSX.utils.book_new(), sh = rows => XLSX.utils.aoa_to_sheet(rows);
+  XLSX.utils.book_append_sheet(wb, sh([[`${CONFIG.company} hiring report`],["Period", `${r.label}, ${r.from} to ${r.to}`],["Role", S.rrole?ROLE(S.rrole).title:"All roles"],["Generated", stamp()],[],
+    ["Applicants", r.pool.length],["In process now", r.active],["Offers made", r.offers],["Hired", r.hired],[],["Funnel stage","Candidates","Share"], ...r.funnel.map(([l,v])=>[l,v,`${Math.round(v/r.n*100)}%`])]), "Summary");
+  XLSX.utils.book_append_sheet(wb, sh([["Stars","Candidates"], ...r.byStars, [], ["Name","Rating","Role","Status"], ...r.pool.filter(c=>c.rating).sort((a,b)=>b.rating-a.rating).map(c=>[c.name,c.rating,ROLE(c.role).title,ST(c.status).label])]), "Star ratings");
+  XLSX.utils.book_append_sheet(wb, sh([["Status","Candidates","Share"], ...r.byStatus.map(([l,v,p])=>[l,v,`${p}%`])]), "By status");
+  XLSX.utils.book_append_sheet(wb, sh([["Department","Total","Active","Offers","Hired"], ...r.byDept, [], ["Source","Applicants","Reached offer","Conversion"], ...r.bySource.map(([s,a,o,p])=>[s,a,o,`${p}%`])]), "By department");
+  XLSX.utils.book_append_sheet(wb, sh([["Name","Email","Role","Department","Status","Source","Applied","Rating","Culture score","Recommendation"],
+    ...r.pool.map(c=>[c.name,c.email,ROLE(c.role).title,c.dept,ST(c.status).label,c.source,c.applied,c.rating||"",c.culture.state==="done"?c.culture.total:"",c.culture.state==="done"?c.culture.rec:""])]), "Raw data");
+  XLSX.writeFile(wb, fileStem()+".xlsx");
+  toast("Excel report downloaded");
+}
+function exportPdf(){
+  if(!window.jspdf || !window.jspdf.jsPDF){ toast("The PDF library is still loading. Try again in a moment."); return; }
+  const r = reportData(), doc = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
+  if(typeof doc.autoTable!=="function"){ toast("The PDF library is still loading. Try again in a moment."); return; }
+  const INK=[39,35,52], ORANGE=[255,116,61], BERRY=[116,51,84], W = doc.internal.pageSize.getWidth();
+  doc.setFillColor(...INK); doc.rect(0,0,W,86,"F");
+  doc.setTextColor(255,248,242); doc.setFont("helvetica","bold"); doc.setFontSize(20); doc.text(`${CONFIG.company} hiring report`, 40, 44);
+  doc.setFont("helvetica","normal"); doc.setFontSize(10); doc.text(`${r.label}, ${r.from} to ${r.to}. ${S.rrole?ROLE(S.rrole).title:"All roles"}.`, 40, 64);
+  doc.setFillColor(...ORANGE); doc.rect(0,86,W,4,"F");
+  const kp = [["Applicants",r.pool.length],["In process",r.active],["Offers made",r.offers],["Hired",r.hired]], bw = (W-80-30)/4;
+  kp.forEach(([l,v],i)=>{ const x = 40+i*(bw+10); doc.setFillColor(i===3?245:251, i===3?166:243, i===3?200:236); doc.roundedRect(x,110,bw,58,6,6,"F");
+    doc.setTextColor(...INK); doc.setFont("helvetica","bold"); doc.setFontSize(20); doc.text(String(v), x+12, 140); doc.setFont("helvetica","normal"); doc.setFontSize(9); doc.text(l, x+12, 157); });
+  const T = (title, head, body, y) => { doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(...INK); doc.text(title, 40, y);
+    doc.autoTable({startY:y+8, head:[head], body, theme:"grid", margin:{left:40,right:40}, styles:{fontSize:9, textColor:INK, lineColor:[234,223,214]}, headStyles:{fillColor:BERRY, textColor:[255,248,242]}, alternateRowStyles:{fillColor:[255,248,242]}});
+    return doc.lastAutoTable.finalY + 26; };
+  let y = 196;
+  y = T("Hiring funnel", ["Stage","Candidates","Share"], r.funnel.map(([l,v])=>[l,v,`${Math.round(v/r.n*100)}%`]), y);
+  y = T("By status", ["Status","Candidates","Share"], r.byStatus.map(([l,v,p])=>[l,v,`${p}%`]), y);
+  y = T("By department", ["Department","Total","Active","Offers","Hired"], r.byDept, y);
+  y = T("By source", ["Source","Applicants","Reached offer","Conversion"], r.bySource.map(([s,a,o,p])=>[s,a,o,`${p}%`]), y);
+  doc.addPage();
+  T("Candidates", ["Name","Role","Status","Source","Applied","Rating"], r.pool.map(c=>[c.name,ROLE(c.role).title,ST(c.status).label,c.source,c.applied,c.rating?String(c.rating):""]), 50);
+  const pages = doc.internal.getNumberOfPages();
+  for(let i=1;i<=pages;i++){ doc.setPage(i); doc.setFontSize(8); doc.setTextColor(97,91,112); doc.text(`${CONFIG.product}. Fictional demo data. Page ${i} of ${pages}`, 40, doc.internal.pageSize.getHeight()-20); }
+  doc.save(fileStem()+".pdf");
+  toast("PDF report downloaded");
+}
+
+function viewEmails(){
+  return `
+  <div class="page-head"><h1>Sent emails</h1><p class="sub" style="margin:0">Invitations, rejections and assessment links go out from the signed-in person's own Outlook mailbox, signed with their first name.</p></div>
+  <section class="panel">${S.emails.length ? S.emails.map(m=>`<details class="mail"><summary><span class="ts">${esc(m.ts)}</span><span><span class="sj">${esc(m.subject)}</span><br><span class="to">To ${esc(m.to)}, from ${esc(m.from)}</span></span><span class="hint">Show</span></summary><pre>${esc(m.body)}</pre></details>`).join("")
+    : `<div class="empty">No emails yet. Open a candidate and use "Invite to interview" or "Send rejection".</div>`}</section>`;
+}
+
+/* ---------- Candidate drawer ---------- */
+function drawerHtml(c){
+  const role = ROLE(c.role), me = ME();
+  const groups = NOTE_CATS.map(([k,l]) => [l, c.notes.filter(n=>n.cat===k)]).filter(g=>g[1].length);
+  let culture;
+  if(c.culture.state==="done"){
+    culture = `<div class="row"><span class="fit" style="font-size:22px">${c.culture.total}<small>/100</small></span><span class="rec ${c.culture.rec}">${c.culture.rec}</span><span class="hint">Completed ${c.culture.date}</span></div>
+      <div class="dims">${DIMS.map(d=>`<div class="dim"><span>${d}</span><span class="track"><i style="width:${c.culture.scores[d]}%"></i></span><b>${c.culture.scores[d]}</b></div>`).join("")}</div>
+      <h3 style="margin-top:12px">Questions to explore in the interview</h3>
+      <ul class="probes">${c.culture.probes.map(p=>`<li>${esc(p)}</li>`).join("")}</ul>
+      <button class="btn small" data-act="log-open" data-id="${c.id}" style="margin-top:6px">Update results</button>`;
+  } else if(c.culture.state==="sent"){
+    culture = `<p style="margin:0 0 8px">Assessment link sent on ${c.culture.sent}. When the results email arrives, paste it here.</p>
+      <button class="btn small dark" data-act="log-open" data-id="${c.id}">Log results</button>`;
+  } else {
+    culture = `<p class="hint" style="margin:0 0 8px">A 10-minute questionnaire on ways of working. Scores, a recommendation and interview questions appear here once the results are logged.</p>
+      <div class="row" style="gap:8px"><button class="btn small" data-act="email" data-kind="assess" data-id="${c.id}">Send assessment link</button><button class="btn small" data-act="log-open" data-id="${c.id}">Log results</button></div>`;
+  }
+  const ban = S.banner && S.banner.id===c.id ? `<div class="banner">${S.banner.kind==="reject" ? "Status set to Rejected. Let the candidate know?" : "Status set to Interview Scheduled. Send an invitation?"}
+      <span class="spacer"></span><button class="btn small dark" data-act="email" data-kind="${S.banner.kind==="reject"?"reject":"invite"}" data-id="${c.id}">${S.banner.kind==="reject"?"Write rejection":"Write invitation"}</button>
+      <button class="btn small" data-act="banner-x" style="background:transparent">Not now</button></div>` : "";
+  return `<div class="scrim" data-act="close-drawer"></div>
+  <aside class="drawer${S.anim?" anim":""}" role="dialog" aria-modal="true" aria-labelledby="dn">
+    <div class="dh"><div><h2 id="dn">${esc(c.name)}</h2><div class="hint">${esc(role.title)}. Applied ${c.applied} (${daysBetween(c.applied,TODAY)} days ago)</div></div>
+      <button class="btn small x" data-act="close-drawer" aria-label="Close">Close</button></div>
+    <div class="row" style="gap:8px;margin-bottom:16px">
+      <button class="btn small primary" data-act="email" data-kind="invite" data-id="${c.id}">Invite to interview</button>
+      <button class="btn small" data-act="email" data-kind="reject" data-id="${c.id}">Send rejection</button>
+    </div>
+    <div class="sec"><h3>Status</h3>
+      <div class="stogs">${STATUSES.map(s=>`<button class="stog" data-act="status" data-id="${c.id}" data-k="${s.k}" aria-pressed="${c.status===s.k}"><i style="background:${s.color}"></i>${s.label}</button>`).join("")}</div>
+      ${ban}
+    </div>
+    <div class="sec"><h3>Rating</h3>
+      <div class="stars" role="group" aria-label="Rating">${[1,2,3,4,5].map(n=>`<button class="${n<=c.rating?"on":""}" data-act="rate" data-id="${c.id}" data-k="${n}" aria-label="${n} star${n>1?"s":""}" aria-pressed="${n===c.rating}">★</button>`).join("")}</div>
+      <p class="hint" style="margin:4px 0 0">${c.rating?`Rated ${c.rating} of 5. Click the same star again to clear it.`:"Rate this candidate to find them later under Starred."}</p>
+    </div>
+    <div class="sec"><h3>Details</h3>
+      <dl class="facts">
+        <dt>Email</dt><dd>${esc(c.email)}</dd>
+        <dt>Phone</dt><dd>${esc(c.phone)}</dd>
+        <dt>Location</dt><dd>${esc(c.city)}</dd>
+        <dt>Role</dt><dd><select data-act="role" data-id="${c.id}" aria-label="Role">${ROLES.map(r=>`<option value="${r.id}" ${r.id===c.role?"selected":""}>${esc(r.title)}</option>`).join("")}</select></dd>
+        <dt>Source</dt><dd><select data-act="source" data-id="${c.id}" aria-label="Source">${SOURCES.map(s=>`<option ${s===c.source?"selected":""}>${s}</option>`).join("")}</select></dd>
+        <dt>CV</dt><dd><button class="linkish" data-act="cv">${esc(c.cv)}</button></dd>
+      </dl>
+    </div>
+    <div class="sec"><h3>Culture fit assessment</h3>${culture}</div>
+    <div class="sec"><h3>Notes</h3>
+      ${groups.length ? groups.map(([l,ns])=>`<div class="ngroup"><h3>${l}</h3>${ns.map(n=>`<div class="note">${esc(n.text)}<div class="by">${esc(n.by)}, ${esc(n.ts)}</div></div>`).join("")}</div>`).join("") : `<p class="hint" style="margin:0">No notes yet.</p>`}
+      <div class="addnote">
+        <select id="n-cat" aria-label="Note category">${NOTE_CATS.map(([k,l])=>`<option value="${k}" ${k===me.noteCat?"selected":""}>${l}</option>`).join("")}</select>
+        <textarea id="n-text" rows="3" placeholder="Add a note. Visible to the hiring team."></textarea>
+        <div class="row"><span class="hint">Saved as ${esc(me.name)}</span><span class="spacer"></span><button class="btn small primary" data-act="add-note" data-id="${c.id}">Add note</button></div>
+      </div>
+    </div>
+    <div class="sec"><h3>History</h3>
+      <ul class="hist">${[...c.history].reverse().map(h=>`<li><span>${h.d}</span><b>${ST(h.s).label}</b><span>${esc(h.by)}</span></li>`).join("")}</ul>
+    </div>
+  </aside>`;
+}
+
+/* ---------- Modals ---------- */
+function emailTemplate(kind, c){
+  const role = ROLE(c.role), me = ME(), mgr = U(role.manager);
+  const sign = `\n\nBest,\n${first(me.name)}`;
+  if(kind==="invite") return {subject:`Interview for ${role.title} at ${CONFIG.company}`,
+    body:`Hi ${first(c.name)},\n\nThank you for applying for the ${role.title} role at ${CONFIG.company}. We would like to invite you to a 45-minute video interview with ${mgr.name}.\n\nPlease reply with two or three times that suit you next week.${sign}`};
+  if(kind==="reject") return {subject:`Your application for ${role.title}`,
+    body:`Hi ${first(c.name)},\n\nThank you for your interest in the ${role.title} role and for the time you spent on your application. After careful review, we have decided not to move forward.\n\nWe wish you every success in your search.${sign}`};
+  return {subject:`Next step: a short questionnaire`,
+    body:`Hi ${first(c.name)},\n\nAs a next step, please complete our short questionnaire on ways of working. It takes about 10 minutes:\nhttps://careers.${CONFIG.domain}/assessment\n\nThere are no right or wrong answers.${sign}`};
+}
+
+function modalHtml(){
+  const m = S.modal;
+  if(m.type==="email"){
+    const c = C(m.id), t = emailTemplate(m.kind, c);
+    const title = {invite:"Invite to interview", reject:"Send rejection", assess:"Send assessment link"}[m.kind];
+    return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h2 id="mt">${title}</h2>
+      <div class="field"><label for="e-to">To</label><input id="e-to" value="${esc(c.name)} <${esc(c.email)}>" readonly></div>
+      <div class="field"><label for="e-sub">Subject</label><input id="e-sub" value="${esc(t.subject)}"></div>
+      <div class="field"><label for="e-body">Message</label><textarea id="e-body">${esc(t.body)}</textarea></div>
+      <p class="hint" style="margin-top:-6px">Sends from ${esc(mailOf(ME().name))}. Edit anything before sending.</p>
+      <div class="row"><span class="spacer"></span><button class="btn" data-act="close-modal-btn">Close</button><button class="btn primary" data-act="send-email">Send email</button></div>
+    </div></div>`;
+  }
+  if(m.type==="add"){
+    return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h2 id="mt">Add candidate</h2>
+      <div class="field"><label for="a-name">Full name</label><input id="a-name" autocomplete="off"></div>
+      <div class="field"><label for="a-email">Email</label><input id="a-email" type="email" autocomplete="off"></div>
+      <div class="two">
+        <div class="field"><label for="a-role">Role</label><select id="a-role">${ROLES.map(r=>`<option value="${r.id}">${esc(r.title)}</option>`).join("")}</select></div>
+        <div class="field"><label for="a-source">Source</label><select id="a-source">${SOURCES.map(s=>`<option>${s}</option>`).join("")}</select></div>
+      </div>
+      <div class="preview" id="a-preview"></div>
+      <div class="row"><span class="spacer"></span><button class="btn" data-act="close-modal-btn">Close</button><button class="btn primary" data-act="add-save" id="a-save">Add candidate</button></div>
+    </div></div>`;
+  }
+  if(m.type==="import"){
+    const r = m.result;
+    return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h2 id="mt">${esc(r.title)}</h2>
+      <p>${esc(r.intro)}</p>
+      <div class="preview"><b>${r.added.length} new ${r.added.length===1?"candidate":"candidates"} added.</b>
+        ${r.added.length?`<ul class="reslist">${r.added.map(x=>`<li>${esc(x.name)}, ${esc(ROLE(x.role).title)}, ${ST(x.status).label}</li>`).join("")}</ul>`:""}</div>
+      <div class="preview"><b>${r.skipped.length} already in ${esc(CONFIG.product)}</b>, matched by email address. Existing records were left unchanged.
+        ${r.skipped.length?`<ul class="reslist">${r.skipped.map(x=>`<li>${esc(x.name)}</li>`).join("")}</ul>`:""}</div>
+      ${r.invalid?`<div class="preview"><b>${r.invalid} ${r.invalid===1?"row":"rows"} without an email address</b> skipped.</div>`:""}
+      <div class="row"><span class="spacer"></span><button class="btn primary" data-act="close-modal-btn">Done</button></div>
+    </div></div>`;
+  }
+  if(m.type==="xl"){
+    return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h2 id="mt">Import from Excel</h2>
+      <p style="margin-top:0">Upload a spreadsheet with the columns <b>Name, Email, Position</b> and <b>Status</b>. Emails already in ${esc(CONFIG.product)} are skipped, and existing records are never changed.</p>
+      <label class="drop" id="xl-drop"><input type="file" id="xl-file" accept=".xlsx,.xls,.csv"><b>Choose an Excel file</b><br><span class="hint">or drop it here</span></label>
+      <p class="hint">No file at hand? <button class="linkish" data-act="xl-sample">Download a sample file</button> with five rows, two of them already in the list.</p>
+      <div id="xl-status" class="hint" role="status"></div>
+      <div class="row"><span class="spacer"></span><button class="btn" data-act="close-modal-btn">Close</button></div>
+    </div></div>`;
+  }
+  if(m.type==="log"){
+    const c = C(m.id), cu = c.culture.state==="done" ? c.culture : null;
+    return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h2 id="mt">Log assessment results</h2>
+      <p class="hint" style="margin-top:-6px">${esc(c.name)}. Paste the results email you received, or enter the scores by hand.</p>
+      <div class="field paste"><label for="l-paste">Results email</label><textarea id="l-paste" placeholder="Paste the full email text here"></textarea></div>
+      <div class="row" style="gap:8px;margin:-4px 0 14px"><button class="btn small" data-act="log-sample">Paste a sample email</button><button class="btn small dark" data-act="log-parse">Parse automatically</button></div>
+      <p id="l-msg" class="hint" role="status" style="margin:-6px 0 12px"></p>
+      <div class="grid2">
+        <div class="field"><label for="l-overall">Overall score (%)</label><input id="l-overall" type="number" min="0" max="100" value="${cu?cu.total:""}"></div>
+        <div class="field"><label for="l-rec">Recommendation</label><select id="l-rec"><option value="">Choose</option>${["HIRE","HOLD","PASS"].map(v=>`<option ${cu&&cu.rec===v?"selected":""}>${v}</option>`).join("")}</select></div>
+      </div>
+      <div class="grid2">${DIMS.map(d=>`<div class="field"><label for="l-${d.toLowerCase()}">${d} (%)</label><input id="l-${d.toLowerCase()}" type="number" min="0" max="100" value="${cu?cu.scores[d]:""}"></div>`).join("")}
+        <div class="field"><label for="l-date">Completed on</label><input id="l-date" type="date" value="${cu?cu.date:TODAY}"></div>
+      </div>
+      <div class="row"><span class="spacer"></span><button class="btn" data-act="close-modal-btn">Close</button><button class="btn primary" data-act="log-save">Save to candidate file</button></div>
+    </div></div>`;
+  }
+  if(m.type==="cv"){
+    return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
+      <h2 id="mt">CV preview</h2>
+      <p>In the live app the CV opens from SharePoint in a new tab. This demo has no real documents.</p>
+      <div class="row"><span class="spacer"></span><button class="btn primary" data-act="close-modal-btn">OK</button></div>
+    </div></div>`;
+  }
+  return "";
+}
+
+const q = s => app.querySelector(s);
+function syncModal(){
+  if(S.modal.type!=="add") return;
+  const name = q("#a-name").value.trim(), email = q("#a-email").value.trim().toLowerCase();
+  const dup = email && S.candidates.find(c => c.email.toLowerCase()===email);
+  let msg, ok = false;
+  if(dup) msg = `<span class="err">Already in ${esc(CONFIG.product)}: ${esc(dup.name)}, ${esc(ROLE(dup.role).title)}, ${ST(dup.status).label}.</span> <button class="linkish" data-act="open-dup" data-id="${dup.id}">Open profile</button>`;
+  else if(!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) msg = `Enter a name and a valid email. Duplicates are caught by email address.`;
+  else { msg = `Adds ${esc(name)} with status New.`; ok = true; }
+  q("#a-preview").innerHTML = msg;
+  q("#a-save").disabled = !ok;
+}
+
+/* ---------- Actions ---------- */
+function toast(t){ document.querySelectorAll(".toast").forEach(x=>x.remove()); const el=document.createElement("div"); el.className="toast"; el.setAttribute("role","status"); el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2600); }
+
+function setStatus(c, k, opts={}){
+  if(c.status===k) return;
+  c.status = k; c.history.push({s:k, d:TODAY, by:ME().name});
+  if(!opts.quiet && (k==="rejected" || k==="interview")){ S.openId = c.id; S.banner = {id:c.id, kind: k==="rejected"?"reject":"invite"}; }
+  else S.banner = null;
+}
+function newCand(o){
+  const c = {id:NEXT++, phone:"Not provided", city:"Not provided", status:"new", applied:TODAY, source:"Website", culture:{state:"none"}, notes:[], rating:0, ...o};
+  c.dept = c.dept || ROLE(c.role).dept || "Operations";
+  c.cv = `CV_${c.name.replace(/ /g,"_")}.pdf`;
+  c.history = [{s:c.status, d:TODAY, by:o.by || ME().name}]; delete c.by;
+  S.candidates.push(c); return c;
+}
+const findByEmail = e => S.candidates.find(c => c.email.toLowerCase()===String(e).trim().toLowerCase());
+function doImport(){
+  const added = [], skipped = [];
+  for(const x of S.incoming){
+    const hit = findByEmail(x.email);
+    if(hit){ skipped.push({name:hit.name}); continue; }
+    added.push(newCand({name:x.name, email:x.email, role:x.role, source:x.source, by:"Inbox import"}));
+  }
+  S.modal = {type:"import", result:{title:"Checked the CVs folder", intro:`Found ${S.incoming.length} application emails since the last check.`, added, skipped, invalid:0}};
+  render();
+}
+
+/* Excel import */
+function matchRole(pos){
+  const p = String(pos||"").trim().toLowerCase(); if(!p) return "sp";
+  const r = ROLES.find(r => r.title.toLowerCase()===p) || ROLES.find(r => r.title.toLowerCase().includes(p) || p.includes(r.title.toLowerCase()));
+  return r ? r.id : "sp";
+}
+function matchStatus(v){
+  const t = String(v||"").trim().toLowerCase();
+  const s = STATUSES.find(s => s.label.toLowerCase()===t || s.k===t) || STATUSES.find(s => t && s.label.toLowerCase().startsWith(t.split(" ")[0]));
+  return s ? s.k : "new";
+}
+function handleXl(file){
+  const out = q("#xl-status");
+  if(!file) return;
+  if(!window.XLSX){ out.textContent = "The Excel library is still loading. Try again in a moment."; return; }
+  out.textContent = `Reading ${file.name}...`;
+  const fr = new FileReader();
+  fr.onload = ev => {
+    try{
+      const wb = XLSX.read(ev.target.result, {type:"array"});
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1, defval:""});
+      const head = (rows[0]||[]).map(h => String(h).trim().toLowerCase());
+      const col = n => head.findIndex(h => h.includes(n));
+      const iN = col("name"), iE = col("mail"), iP = Math.max(col("position"), col("role")), iS = col("status");
+      if(iE<0 || iN<0){ out.innerHTML = `<span style="color:var(--bad)">Could not find the Name and Email columns in the first row.</span>`; return; }
+      const added = [], skipped = []; let invalid = 0, n = 0;
+      for(const r of rows.slice(1)){
+        if(!r.some(v => String(v).trim())) continue; n++;
+        const email = String(r[iE]).trim();
+        if(!email){ invalid++; continue; }
+        const hit = findByEmail(email);
+        if(hit){ skipped.push({name:hit.name}); continue; }
+        added.push(newCand({name:String(r[iN]).trim() || email, email, role:matchRole(iP>=0?r[iP]:""), status:matchStatus(iS>=0?r[iS]:""), source:"Excel import", by:"Excel import"}));
+      }
+      if(!SOURCES.includes("Excel import") && added.length) SOURCES.push("Excel import");
+      S.modal = {type:"import", result:{title:"Imported from Excel", intro:`Read ${n} rows from ${file.name}.`, added, skipped, invalid}};
+      render();
+    }catch(err){ out.innerHTML = `<span style="color:var(--bad)">This file could not be read. Save it as .xlsx and try again.</span>`; }
+  };
+  fr.readAsArrayBuffer(file);
+}
+function sampleXl(){
+  if(!window.XLSX){ toast("The Excel library is still loading. Try again in a moment."); return; }
+  const existing = [S.candidates.find(c=>c.status==="interview"), S.candidates.find(c=>c.status==="new")];
+  const fresh = [["swe","New / Received"],["rs","Under Review"],["bd","New / Received"]].map(([r,st]) => { const n = makeName(); return [n, `${plain(first(n))}.${plain(n.split(" ").slice(-1)[0])}@mail.example`, ROLE(r).title, st]; });
+  const rows = [["Name","Email","Position","Status"], ...fresh, ...existing.map(c => [c.name, c.email, ROLE(c.role).title, "Rejected"])];
+  const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Candidates");
+  XLSX.writeFile(wb, `${CONFIG.product}_import_sample.xlsx`);
+  q("#xl-status").textContent = "Sample downloaded. Now choose it above to import it.";
+}
+
+/* Assessment results */
+function sampleResults(c){
+  const sc = Object.fromEntries(DIMS.map(d => [d, 55 + Math.floor(Math.random()*41)]));
+  const overall = Math.round(DIMS.reduce((a,d)=>a+sc[d],0)/DIMS.length);
+  const verdict = overall>=75 ? "STRONG FIT" : overall>=60 ? "MODERATE FIT" : "WEAK FIT";
+  return `From: Questionnaire <forms@careers.${CONFIG.domain}>
+Subject: New questionnaire submission
+
+candidate_name: ${c.name}
+candidate_email: ${c.email}
+submitted_at: ${TODAY}T09:41:12Z
+
+${DIMS.map(d=>`score_${d.toLowerCase()}: ${sc[d]}% (${d})`).join("\n")}
+overall_score: ${overall}%
+verdict: ${verdict}
+
+answer_1: I like owning a problem end to end and asking for help early.
+answer_2: In my last team we moved weekly planning to a shared board.`;
+}
+function parseResults(txt){
+  const out = {scores:{}};
+  DIMS.forEach(d => { const k = d.toLowerCase();
+    const m = txt.match(new RegExp(`score_${k}[^\\d]*(\\d+)\\s*%`,"i")) || txt.match(new RegExp(`${d}\\s*:\\s*(\\d+)\\s*%`,"i"));
+    if(m) out.scores[d] = +m[1]; });
+  let m = txt.match(/overall_score[^\d]*(\d+)\s*%/i) || txt.match(/Overall\s*:\s*(\d+)\s*%/i); if(m) out.overall = +m[1];
+  m = txt.match(/verdict[\s\S]{0,80}?(STRONG FIT|MODERATE FIT|WEAK FIT|CRITICAL MISALIGNMENT)/i);
+  if(m){ const v = m[1].toUpperCase(); out.rec = v==="STRONG FIT" ? "HIRE" : v==="MODERATE FIT" ? "HOLD" : "PASS"; }
+  else { m = txt.match(/RECOMMENDATION\s*:\s*(HIRE|HOLD|PASS)/i); if(m) out.rec = m[1].toUpperCase(); }
+  m = txt.match(/submitted_at[^\d]*(\d{4}-\d{2}-\d{2})/i) || txt.match(/Date\s*:\s*(\d{4}-\d{2}-\d{2})/i); if(m) out.date = m[1];
+  return out;
+}
+function doParse(){
+  const txt = q("#l-paste").value, msg = q("#l-msg");
+  if(!txt.trim()){ msg.innerHTML = `<span style="color:var(--bad)">Paste the results email first.</span>`; return; }
+  const r = parseResults(txt), found = Object.keys(r.scores).length;
+  DIMS.forEach(d => { if(r.scores[d]!=null) q(`#l-${d.toLowerCase()}`).value = r.scores[d]; });
+  if(r.overall!=null) q("#l-overall").value = r.overall;
+  if(r.rec) q("#l-rec").value = r.rec;
+  if(r.date) q("#l-date").value = r.date;
+  const parts = [`${found} of ${DIMS.length} scores`]; if(r.overall!=null) parts.push("overall score"); if(r.rec) parts.push("recommendation"); if(r.date) parts.push("date");
+  msg.innerHTML = found ? `<span class="ok">Found ${parts.join(", ")}.</span> Check the fields, then save.` : `<span style="color:var(--bad)">No scores found. Check the text or enter the scores by hand.</span>`;
+}
+function saveLog(){
+  const c = C(S.modal.id), msg = q("#l-msg"), scores = {};
+  for(const d of DIMS){ const v = q(`#l-${d.toLowerCase()}`).value; if(v==="" || +v<0 || +v>100){ msg.innerHTML = `<span style="color:var(--bad)">Enter a score from 0 to 100 for ${d}.</span>`; q(`#l-${d.toLowerCase()}`).focus(); return; } scores[d] = Math.round(+v); }
+  const ov = q("#l-overall").value, total = ov==="" ? Math.round(DIMS.reduce((a,d)=>a+scores[d],0)/DIMS.length) : Math.max(0,Math.min(100,Math.round(+ov)));
+  c.culture = cultureFrom(scores, total, q("#l-rec").value || null, q("#l-date").value || TODAY);
+  S.modal = null; render(); toast("Results saved to the candidate file");
+}
+
+document.addEventListener("click", e => {
+  const el = e.target.closest("[data-act]");
+  if(!el) return;
+  const act = el.dataset.act, id = +el.dataset.id;
+  switch(act){
+    case "tab": S.tab = el.dataset.k; S.selected.clear(); render(); window.scrollTo(0,0); break;
+    case "list": S.filters.list = el.dataset.k; S.filters.role = ""; render(); break;
+    case "sel": e.stopPropagation(); S.selected.has(id) ? S.selected.delete(id) : S.selected.add(id); render(); break;
+    case "sel-all": { const ids = filtered().map(c=>c.id); const all = ids.every(i=>S.selected.has(i)); ids.forEach(i => all ? S.selected.delete(i) : S.selected.add(i)); render(); break; }
+    case "bulk-apply": { const k = q("#bulk-status").value; const ids=[...S.selected]; ids.forEach(i => setStatus(C(i), k, {quiet:true})); S.selected.clear(); render(); toast(`Updated ${ids.length} candidates to ${ST(k).label}`); break; }
+    case "bulk-clear": S.selected.clear(); render(); break;
+    case "open": S.openId = id; S.anim = true; S.banner = null; render(); break;
+    case "close-drawer": S.openId = null; S.banner = null; render(); break;
+    case "status": setStatus(C(id), el.dataset.k); S.openId = id; render(); toast(`Status: ${ST(el.dataset.k).label}`); break;
+    case "banner-x": S.banner = null; render(); break;
+    case "email": S.modal = {type:"email", kind:el.dataset.kind, id}; render(); break;
+    case "send-email": {
+      const m = S.modal, c = C(m.id);
+      S.emails.unshift({ts:stamp(), from:mailOf(ME().name), to:`${c.name} <${c.email}>`, subject:q("#e-sub").value, body:q("#e-body").value});
+      if(m.kind==="assess") c.culture = {state:"sent", sent:TODAY};
+      if(m.kind==="reject" && c.status!=="rejected") setStatus(c, "rejected", {quiet:true});
+      S.banner = null; S.modal = null; render(); toast("Sent from your mailbox"); break;
+    }
+    case "log-open": S.modal = {type:"log", id}; render(); break;
+    case "log-sample": q("#l-paste").value = sampleResults(C(S.modal.id)); q("#l-msg").textContent = "Sample pasted. Now click Parse automatically."; break;
+    case "log-parse": doParse(); break;
+    case "log-save": saveLog(); break;
+    case "rate": { const c = C(id), k = +el.dataset.k; c.rating = c.rating===k ? 0 : k; render(); toast(c.rating?`Rated ${c.rating} of 5`:"Rating cleared"); break; }
+    case "clear-dept": S.filters.dept = ""; render(); break;
+    case "dash-status": S.filters = {list:"all", q:"", role:"", status:el.dataset.k, source:"", dept:""}; S.tab = "cands"; render(); window.scrollTo(0,0); break;
+    case "dash-dept": S.filters = {list:"all", q:"", role:"", status:"", source:"", dept:el.dataset.k}; S.tab = "cands"; render(); window.scrollTo(0,0); break;
+    case "period": S.period.k = el.dataset.k; render(); break;
+    case "export-pdf": exportPdf(); break;
+    case "export-xlsx": exportXlsx(); break;
+    case "xl-open": S.modal = {type:"xl"}; render(); break;
+    case "xl-sample": sampleXl(); break;
+    case "add-note": {
+      const text = q("#n-text").value.trim(); if(!text){ q("#n-text").focus(); return; }
+      C(id).notes.push({cat:q("#n-cat").value, by:ME().name, ts:stamp(), text}); render(); toast("Note added"); break;
+    }
+    case "cv": S.modal = {type:"cv"}; render(); break;
+    case "add": S.modal = {type:"add"}; render(); break;
+    case "add-save": {
+      const c = newCand({name:q("#a-name").value.trim(), email:q("#a-email").value.trim(), role:q("#a-role").value, source:q("#a-source").value});
+      S.modal = null; S.openId = c.id; S.anim = true; render(); toast("Candidate added"); break;
+    }
+    case "open-dup": S.modal = null; S.openId = id; S.anim = true; render(); break;
+    case "import": doImport(); break;
+    case "close-modal": if(e.target===el){ S.modal = null; render(); } break;
+    case "close-modal-btn": S.modal = null; render(); break;
+  }
+});
+document.addEventListener("change", e => {
+  const el = e.target;
+  if(el.dataset.act==="persona"){ S.me = el.value; render(); toast(`Signed in as ${ME().name}`); return; }
+  if(el.dataset.act==="role"){ C(+el.dataset.id).role = el.value; render(); toast("Role updated"); return; }
+  if(el.dataset.act==="source"){ C(+el.dataset.id).source = el.value; render(); toast("Source updated"); return; }
+  const map = {"f-role":"role","f-status":"status","f-source":"source"};
+  if(map[el.id]){ S.filters[map[el.id]] = el.value; render(); return; }
+  if(el.id==="r-role"){ S.rrole = el.value; render(); return; }
+  if(el.id==="p-from"){ S.period.from = el.value; render(); return; }
+  if(el.id==="p-to"){ S.period.to = el.value; render(); return; }
+  if(el.id==="s-min"){ S.star.min = el.value; render(); return; }
+  if(el.id==="s-dept"){ S.star.dept = el.value; render(); return; }
+  if(el.id==="xl-file"){ handleXl(el.files[0]); return; }
+  if(S.modal) syncModal();
+});
+document.addEventListener("input", e => {
+  if(e.target.id==="f-q"){ S.filters.q = e.target.value; render(); return; }
+  if(e.target.id==="s-q"){ S.star.q = e.target.value; render(); return; }
+  if(S.modal && e.target.closest(".modal")) syncModal();
+});
+document.addEventListener("keydown", e => {
+  if(e.key!=="Escape") return;
+  if(S.modal){ S.modal=null; render(); } else if(S.openId){ S.openId=null; S.banner=null; render(); }
+});
+
+/* Drag and drop on the pipeline board (desktop) */
+document.addEventListener("dragstart", e => { const k = e.target.closest(".kc"); if(k){ e.dataTransfer.setData("text/plain", k.dataset.id); e.dataTransfer.effectAllowed="move"; } });
+document.addEventListener("dragover", e => { if(e.target.closest("#xl-drop")) e.preventDefault(); });
+document.addEventListener("drop", e => { const z = e.target.closest("#xl-drop"); if(z){ e.preventDefault(); e.stopImmediatePropagation(); handleXl(e.dataTransfer.files[0]); } }, true);
+document.addEventListener("dragover", e => { const col = e.target.closest("[data-drop]"); if(col){ e.preventDefault(); document.querySelectorAll(".col.over").forEach(x=>x!==col&&x.classList.remove("over")); col.classList.add("over"); } });
+document.addEventListener("dragleave", e => { const col = e.target.closest("[data-drop]"); if(col && !col.contains(e.relatedTarget)) col.classList.remove("over"); });
+document.addEventListener("drop", e => {
+  const col = e.target.closest("[data-drop]"); if(!col) return; e.preventDefault();
+  const c = C(+e.dataTransfer.getData("text/plain")); if(!c) return;
+  const k = col.dataset.drop, changed = c.status!==k;
+  setStatus(c, k); render(); if(changed) toast(`${c.name}: ${ST(k).label}`);
+});
+
+render();
+</script>
+</body>
+</html>
