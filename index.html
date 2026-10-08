@@ -99,6 +99,7 @@ table.tbl{width:100%;border-collapse:collapse;font-size:14px}
 .tbl tbody tr:hover td{background:var(--soft)}
 .tbl tr.sel td{background:#FFEDE4}
 @media (prefers-color-scheme:dark){.tbl tr.sel td{background:#3A2E3A}}
+.tbl td:nth-child(7){white-space:nowrap}
 .tbl .nm{font-weight:600}
 .tbl .em{font-size:12.5px;color:var(--muted)}
 .tbl input[type=checkbox]{width:16px;height:16px;cursor:pointer}
@@ -362,11 +363,321 @@ footer a{color:var(--ink);text-decoration-color:var(--orange);text-decoration-th
   .made .tag2{flex-basis:100%}
 }
 @media (max-width:380px){.depts{grid-template-columns:1fr}.two{grid-template-columns:1fr}.filters,.filters.three{grid-template-columns:1fr}}
+
+/* Language switch */
+.lang{display:inline-flex;border:1px solid #5A5370;border-radius:999px;overflow:hidden;flex:none}
+.lang button{background:transparent;border:0;color:#CFC8D8;padding:3px 10px;font-size:12px;font-weight:600;cursor:pointer;line-height:1.4}
+.lang button[aria-pressed="true"]{background:var(--orange);color:var(--ink-c)}
 </style>
 </head>
 <body>
 <div id="app"></div>
 
+<script>
+/* ============================================================
+   Language switch (English / Russian).
+   The app renders in English. In Russian mode every text, label
+   and message is translated on screen as it appears.
+   Add or fix translations in I18N_EXACT and I18N_RULES below.
+   ============================================================ */
+const I18N = (() => {
+  const KEY = "demo-lang";
+  let lang = "en";
+  try { lang = new URLSearchParams(location.search).get("lang") || localStorage.getItem(KEY) || "en"; } catch(e) {}
+  if(lang !== "ru") lang = "en";
+  let EX = {}, RULES = [];
+
+  // Russian plural: pl(5, ["день","дня","дней"]) -> "дней". Fractions take the second form.
+  const pl = (n, f) => { n = Math.abs(+n); if(!Number.isInteger(n)) return f[1];
+    const a = n % 10, b = n % 100; return a===1 && b!==11 ? f[0] : (a>=2 && a<=4 && (b<10 || b>=20)) ? f[1] : f[2]; };
+  const DAYS = s => { s = String(s).trim();
+    if(s === "half a day") return "полдня";
+    const m = s.match(/^(\d+(?:\.\d+)?) days?$/); return m ? `${m[1]} ${pl(+m[1], ["день","дня","дней"])}` : s; };
+  const RG = s => String(s)
+    .replace(/^(\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})$/, "с $1 по $2")
+    .replace(/^(\d{4}-\d{2}-\d{2}), morning$/, "$1, утро")
+    .replace(/^(\d{4}-\d{2}-\d{2}), afternoon$/, "$1, после обеда");
+
+  const core = s => {
+    if(Object.prototype.hasOwnProperty.call(EX, s)) return EX[s];
+    for(const [re, fn] of RULES){ const m = s.match(re); if(m){ const r = typeof fn === "function" ? fn(m) : fn; if(r != null) return r; } }
+    return null;
+  };
+  // Translate a piece inside a rule. Returns the input unchanged when there is no translation.
+  const T = s => { if(s == null) return s; const k = String(s).replace(/\s+/g, " ").trim(); const r = core(k); return r == null ? String(s) : r; };
+  // Translate a full text, keeping its leading and trailing spaces.
+  const tr = s => {
+    if(lang !== "ru" || s == null) return s;
+    const str = String(s), m = str.match(/^(\s*)([\s\S]*?)(\s*)$/), k = m[2].replace(/\s+/g, " ");
+    if(!k) return str; const r = core(k); return r == null ? str : m[1] + r + m[3];
+  };
+
+  const ATTRS = ["placeholder", "aria-label", "title"];
+  const doNode = n => {
+    if(n.nodeType === 3){
+      const p = n.parentNode; if(!p || /^(SCRIPT|STYLE)$/.test(p.nodeName) || (p.closest && p.closest("[data-notr]"))) return;
+      const v = tr(n.data); if(v !== n.data) n.data = v;
+    } else if(n.nodeType === 1){
+      if(n.closest("[data-notr]")) return;
+      for(const a of ATTRS){ const v = n.getAttribute(a); if(v){ const t = tr(v); if(t !== v) n.setAttribute(a, t); } }
+    }
+  };
+  const walk = root => {
+    if(lang !== "ru" || !root) return;
+    if(root.nodeType === 3){ doNode(root); return; }
+    if(root.nodeType !== 1) return;
+    doNode(root); const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    while(w.nextNode()) doNode(w.currentNode);
+  };
+  const obs = new MutationObserver(ms => { if(lang !== "ru") return; for(const m of ms){
+    if(m.type === "characterData" || m.type === "attributes") doNode(m.target); else m.addedNodes.forEach(walk); } });
+
+  const nativeConfirm = window.confirm.bind(window);
+  window.confirm = msg => nativeConfirm(tr(msg));
+
+  let baseTitle = document.title;
+  const apply = () => { document.documentElement.lang = lang; document.title = tr(baseTitle); };
+  const start = () => { baseTitle = document.title; apply();
+    obs.observe(document.body, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:ATTRS}); walk(document.body); };
+  const set = l => { lang = l === "ru" ? "ru" : "en"; try { localStorage.setItem(KEY, lang); } catch(e) {} apply();
+    if(typeof window.render === "function") window.render(); walk(document.body); };
+
+  // Language buttons for the header
+  const toggle = () => `<span class="lang" data-notr role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="${lang==="en"}" title="English">EN</button><button type="button" data-lang="ru" aria-pressed="${lang==="ru"}" title="Русский">RU</button></span>`;
+  document.addEventListener("click", e => { const b = e.target.closest("[data-lang]"); if(b){ e.stopPropagation(); set(b.dataset.lang); } }, true);
+
+  return { get lang(){ return lang; }, tr, T, pl, DAYS, RG, toggle, start, set,
+    add(ex, rules){ for(const k in (ex || {})) if(!(k in EX)) EX[k] = ex[k]; RULES = RULES.concat(rules || []); } };
+})();
+const tr = I18N.tr;
+
+/* Russian texts for Hireboard */
+(() => {
+const {T, pl} = I18N;
+const STATUS = {"New / Received":"Новая / Получена","Under Review":"На рассмотрении","Interview Scheduled":"Интервью назначено",
+  "Offer Extended":"Оффер отправлен","Hired":"Нанят","Offer Declined":"Оффер отклонён","Good - Not Now":"Хороший, но не сейчас",
+  "Rejected":"Отказ","On Hold":"На паузе"};
+const ROLE = {"Senior Software Engineer":"Старший инженер-программист","Embedded Systems Engineer":"Инженер встраиваемых систем",
+  "Research Scientist, Cell Biology":"Научный сотрудник, клеточная биология","Business Development Manager":"Менеджер по развитию бизнеса",
+  "Operations Coordinator":"Координатор операций","Spontaneous application":"Инициативная заявка"};
+const SOURCE = {"Website":"Сайт","LinkedIn":"LinkedIn","Employee referral":"Рекомендация сотрудника","Recruiter":"Рекрутер","Email":"Email","Excel import":"Импорт из Excel"};
+const DEPT = {"Engineering":"Инженерия","R&D":"R&D","Commercial":"Продажи","Operations":"Операции"};
+const DIM = {"Ownership":"Ответственность","Collaboration":"Сотрудничество","Curiosity":"Любознательность","Resilience":"Устойчивость","Clarity":"Ясность"};
+const role = s => { const m = s.match(/^Lab Internship (\d{4})$/); return m ? `Стажировка в лаборатории ${m[1]}` : (ROLE[s] || s); };
+const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const ROLE_RE = `(${[...Object.keys(ROLE).map(esc), "Lab Internship \\d{4}"].join("|")})`;
+const STATUS_RE = `(${Object.keys(STATUS).map(esc).join("|")})`;
+const SOURCE_RE = `(${Object.keys(SOURCE).map(esc).join("|")})`;
+const DEPT_RE = "(Engineering|R&D|Commercial|Operations)";
+const cand = n => `${n} ${pl(n, ["кандидат","кандидата","кандидатов"])}`;
+const days = n => `${n} ${pl(n, ["день","дня","дней"])}`;
+const PERIOD = {"All time":"За всё время","Year to date":"С начала года","Quarter to date":"С начала квартала","Custom period":"Свой период"};
+const period = s => { const m = s.match(/^Last (\d+) days$/); return m ? `Последние ${days(+m[1])}` : (PERIOD[s] || s); };
+
+I18N.add({
+  ...STATUS, ...ROLE, ...SOURCE, ...DIM,
+  "Website":"Сайт",
+  "Dashboard":"Главная", "Candidates":"Кандидаты", "Pipeline":"Воронка", "Starred":"Избранное", "Reports":"Отчёты", "Sent emails":"Отправленные письма",
+  "Home":"Главная", "List":"Список", "Emails":"Письма",
+  "Where hiring stands today, across every role and department.":"Состояние найма на сегодня по всем вакансиям и отделам.",
+  "Add candidate":"Добавить кандидата", "Total":"Всего", "All candidates":"Все кандидаты", "Awaiting review":"Ждут рассмотрения",
+  "In progress":"В работе", "Active pipeline":"Активная воронка", "Offers extended":"Отправлено офферов", "Pending response":"Ждут ответа",
+  "Accepted offers":"Принятые офферы", "New":"Новые", "Review":"Рассм.", "Interview":"Интервью", "Offer":"Оффер",
+  "Recent applications":"Последние заявки",
+  "Every applicant in one list, whether they came from the careers page, LinkedIn or a direct email.":"Все кандидаты в одном списке: с карьерной страницы, из LinkedIn или по почте.",
+  "Check inbox for CVs":"Проверить почту на резюме", "Import from Excel":"Импорт из Excel",
+  "Open roles":"Открытые вакансии", "Spontaneous":"Инициативные", "Internships":"Стажировки",
+  "Search name, email, role or city":"Поиск по имени, email, вакансии или городу", "Search candidates":"Поиск кандидатов",
+  "All roles":"Все вакансии", "All statuses":"Все статусы", "All sources":"Все источники",
+  "In progress (review or interview)":"В работе (рассмотрение или интервью)",
+  "Candidate":"Кандидат", "Role":"Вакансия", "Status":"Статус", "Rating":"Оценка", "Source":"Источник", "Applied":"Подана", "Culture fit":"Соответствие",
+  "Culture fit:":"Культурное соответствие:", "Sent":"Отправлено", "Not sent":"Не отправлено", "Not rated":"Без оценки",
+  "Select all":"Выбрать всех", "Set status":"Изменить статус", "Clear":"Сбросить", "Clear department filter":"Сбросить фильтр по отделу",
+  "No candidates match these filters. Clear the search or pick another list.":"Нет кандидатов по этим фильтрам. Сбросьте поиск или выберите другой список.",
+  "Drag a card to another column to change its status, or open it for details.":"Перетащите карточку в другую колонку, чтобы изменить статус, или откройте её для подробностей.",
+  "Nobody here.":"Здесь пока никого.",
+  "Starred candidates":"Избранные кандидаты",
+  "Your top-rated people across all roles, so strong runners-up are easy to find when a role opens.":"Кандидаты с лучшими оценками по всем вакансиям. Сильных финалистов легко найти, когда откроется вакансия.",
+  "Search name or email":"Поиск по имени или email", "Search starred candidates":"Поиск в избранном", "Minimum rating":"Минимальная оценка",
+  "Any rating":"Любая оценка", "5 stars only":"Только 5 звёзд", "All departments":"Все отделы", "Department":"Отдел",
+  "No starred candidates match. Open any candidate and click the stars to rate them.":"В избранном никого не найдено. Откройте кандидата и поставьте звёзды.",
+  "Hiring reports":"Отчёты по найму", "Download PDF":"Скачать PDF", "Download Excel":"Скачать Excel",
+  "All time":"За всё время", "YTD":"С начала года", "QTD":"С начала квартала", "Custom":"Свой период",
+  "Applicants":"Кандидаты", "In process now":"Сейчас в работе", "Offers made":"Сделано офферов",
+  "Hiring funnel":"Воронка найма", "Under review":"Рассмотрение", "New applicants per week":"Новые кандидаты по неделям",
+  "Where good candidates come from":"Откуда приходят сильные кандидаты", "Reached offer":"Дошли до оффера", "Conversion":"Конверсия",
+  "Reached offer counts offers extended, accepted or declined.":"«Дошли до оффера» включает отправленные, принятые и отклонённые офферы.",
+  "Status mix":"Распределение по статусам", "By department":"По отделам", "Active":"Активные", "Offers":"Офферы",
+  "No applications in this period. Pick a longer period or another role.":"В этом периоде заявок нет. Выберите период длиннее или другую вакансию.",
+  "Invitations, rejections and assessment links go out from the signed-in person's own Outlook mailbox, signed with their first name.":"Приглашения, отказы и ссылки на опросник уходят из ящика Outlook того, кто вошёл в систему, с подписью по имени.",
+  "No emails yet. Open a candidate and use \"Invite to interview\" or \"Send rejection\".":"Писем пока нет. Откройте кандидата и нажмите «Пригласить на интервью» или «Отправить отказ».",
+  "Show":"Показать", "(Earlier message, shown as an example.)":"(Более раннее письмо, показано для примера.)",
+  "Invite to interview":"Пригласить на интервью", "Send rejection":"Отправить отказ", "Send assessment link":"Отправить опросник",
+  "Details":"Данные", "Phone":"Телефон", "Location":"Город", "CV":"Резюме", "Not provided":"Не указано",
+  "Rate this candidate to find them later under Starred.":"Оцените кандидата, чтобы потом найти его в избранном.",
+  "Culture fit assessment":"Оценка культурного соответствия", "overall culture fit":"общее соответствие",
+  "Questions to explore in the interview":"Вопросы для интервью", "Update results":"Обновить результаты", "Log results":"Внести результаты",
+  "A 10-minute questionnaire on ways of working. Scores, a recommendation and interview questions appear here once the results are logged.":"Опросник на 10 минут о стиле работы. Баллы, рекомендация и вопросы для интервью появятся здесь после внесения результатов.",
+  "Notes":"Заметки", "No notes yet.":"Заметок пока нет.", "Note category":"Тип заметки",
+  "Screen interview":"Первичное интервью", "Manager notes":"Заметки руководителя", "References check":"Проверка рекомендаций", "Other notes":"Другие заметки",
+  "Add a note. Visible to the hiring team.":"Добавьте заметку. Её видит вся команда найма.", "Add note":"Добавить заметку",
+  "History":"История", "Careers form":"Форма на сайте", "Inbox import":"Импорт из почты",
+  "Status set to Rejected. Let the candidate know?":"Статус изменён на «Отказ». Сообщить кандидату?",
+  "Status set to Interview Scheduled. Send an invitation?":"Статус изменён на «Интервью назначено». Отправить приглашение?",
+  "Write rejection":"Написать отказ", "Write invitation":"Написать приглашение", "Not now":"Не сейчас",
+  "To":"Кому", "Subject":"Тема", "Message":"Сообщение", "Send email":"Отправить письмо",
+  "Full name":"Полное имя", "Open profile":"Открыть профиль",
+  "Enter a name and a valid email. Duplicates are caught by email address.":"Укажите имя и корректный email. Дубликаты определяются по email.",
+  "Checked the CVs folder":"Папка с резюме проверена", "Imported from Excel":"Импортировано из Excel",
+  ", matched by email address. Existing records were left unchanged.":", совпадение по email. Существующие записи не изменены.",
+  "skipped.":"пропущено.",
+  "Upload a spreadsheet with the columns":"Загрузите таблицу со столбцами", "Name, Email, Position":"Name, Email, Position", "and":"и",
+  ". Emails already in Hireboard are skipped, and existing records are never changed.":". Кандидаты, чьи email уже есть в Hireboard, пропускаются, а существующие записи не меняются.",
+  "Choose an Excel file":"Выберите файл Excel", "or drop it here":"или перетащите его сюда", "No file at hand?":"Нет файла под рукой?",
+  "Download a sample file":"Скачайте пример", "with five rows, two of them already in the list.":"на пять строк, две из них уже есть в списке.",
+  "Sample downloaded. Now choose it above to import it.":"Пример скачан. Теперь выберите его выше для импорта.",
+  "Could not find the Name and Email columns in the first row.":"В первой строке не найдены столбцы Name и Email.",
+  "This file could not be read. Save it as .xlsx and try again.":"Не удалось прочитать файл. Сохраните его в .xlsx и попробуйте снова.",
+  "The Excel library is still loading. Try again in a moment.":"Библиотека Excel ещё загружается. Попробуйте через минуту.",
+  "The PDF library is still loading. Try again in a moment.":"Библиотека PDF ещё загружается. Попробуйте через минуту.",
+  "Log assessment results":"Внести результаты опросника", "Results email":"Письмо с результатами", "Paste the full email text here":"Вставьте сюда полный текст письма",
+  "Paste a sample email":"Вставить пример письма", "Parse automatically":"Разобрать автоматически",
+  "Overall score (%)":"Общий балл (%)", "Recommendation":"Рекомендация", "Choose":"Выберите", "Completed on":"Дата прохождения",
+  "Save to candidate file":"Сохранить в карточку", "Paste the results email first.":"Сначала вставьте письмо с результатами.",
+  "Sample pasted. Now click Parse automatically.":"Пример вставлен. Теперь нажмите «Разобрать автоматически».",
+  "No scores found. Check the text or enter the scores by hand.":"Баллы не найдены. Проверьте текст или введите баллы вручную.",
+  "Check the fields, then save.":"Проверьте поля и сохраните.",
+  "CV preview":"Просмотр резюме", "OK":"OK",
+  "In the live app the CV opens from SharePoint in a new tab. This demo has no real documents.":"В рабочей версии резюме открывается из SharePoint в новой вкладке. В демо настоящих документов нет.",
+  "Sent from your mailbox":"Отправлено из вашего ящика", "Note added":"Заметка добавлена", "Candidate added":"Кандидат добавлен",
+  "Role updated":"Вакансия изменена", "Source updated":"Источник изменён", "Results saved to the candidate file":"Результаты сохранены в карточку",
+  "Rating cleared":"Оценка снята", "Excel report downloaded":"Отчёт Excel скачан", "PDF report downloaded":"Отчёт PDF скачан",
+  "Recent applicant":"Недавний кандидат",
+  "Luxembourg":"Люксембург","Esch-sur-Alzette":"Эш-сюр-Альзетт","Metz":"Мец","Trier":"Трир","Brussels":"Брюссель","Lisbon":"Лиссабон",
+  "Munich":"Мюнхен","Paris":"Париж","Warsaw":"Варшава","Milan":"Милан","Amsterdam":"Амстердам","Remote, EU":"Удалённо, ЕС",
+  "Clear communicator, motivated by the mission. Salary expectations within range.":"Ясно излагает мысли, мотивирован миссией. Ожидания по зарплате в пределах бюджета.",
+  "Good first call. Strong fundamentals, less experience in regulated environments.":"Хороший первый звонок. Сильная база, меньше опыта в регулируемых отраслях.",
+  "One month notice. Based in Luxembourg, no relocation needed.":"Срок уведомления месяц. Живёт в Люксембурге, переезд не нужен.",
+  "Relocating from abroad, would need visa support. Strong background.":"Переезжает из-за рубежа, нужна визовая поддержка. Сильный опыт.",
+  "Technical interview went well. Solid on system design, needs mentoring on testing.":"Техническое интервью прошло хорошо. Уверенно в проектировании систем, нужна помощь с тестированием.",
+  "Strong lab skills and well-structured answers. Recommend moving forward.":"Сильные лабораторные навыки и структурные ответы. Рекомендую двигаться дальше.",
+  "Good culture add. Some gaps in embedded C but learns quickly.":"Хорошо впишется в команду. Есть пробелы во встраиваемом C, но быстро учится.",
+  "Impressive portfolio. Asked sharp questions about our roadmap.":"Впечатляющее портфолио. Задавал точные вопросы о наших планах.",
+  "Aligned on vision and expectations. Happy to proceed with an offer.":"Совпадаем по видению и ожиданиям. Готов сделать оффер.",
+  "Good energy. Discussed equity and start date.":"Хорошая энергия. Обсудили опционы и дату выхода.",
+  "Two references received, both very positive. Former manager would rehire.":"Получены две рекомендации, обе очень положительные. Бывший руководитель взял бы снова.",
+  "Recommended by a team member.":"Рекомендация сотрудника команды.", "Asked to be considered for future roles as well.":"Просит рассматривать и на будущие вакансии.",
+  "Tell me about a project you drove without being asked.":"Расскажите о проекте, который вы вели по своей инициативе.",
+  "Describe a disagreement with a colleague and how you resolved it.":"Опишите разногласие с коллегой и как вы его разрешили.",
+  "What have you learned recently outside your own field?":"Что нового вы недавно узнали вне своей области?",
+  "Tell me about a setback and what you changed afterwards.":"Расскажите о неудаче и о том, что вы изменили после неё.",
+  "Explain a complex part of your work as you would to a new colleague.":"Объясните сложную часть своей работы так, как объяснили бы новому коллеге.",
+  // export labels
+  "Period":"Период", "Generated":"Создан", "Funnel stage":"Этап воронки", "Share":"Доля", "Stars":"Звёзды", "Name":"Имя",
+  "Culture score":"Балл соответствия", "Summary":"Сводка", "Star ratings":"Оценки", "By status":"По статусам", "Raw data":"Все данные",
+  "By source":"По источникам", "From":"С", "New candidates":"Новые кандидаты", "Rated candidates":"Оценённые кандидаты", "Allow pop-ups to save the PDF":"Разрешите всплывающие окна, чтобы сохранить PDF", "Stage":"Этап", "In process":"В работе", "Hiring report":"Отчёт по найму"
+}, [
+  [/^Welcome, (.+)$/, m => `Добро пожаловать, ${m[1]}`],
+  [/^Select (.+)$/, m => `Выбрать: ${m[1]}`],
+  [/^(\d+) candidates?$/, m => cand(+m[1])],
+  [/^(\d+) selected$/, m => `Выбрано: ${m[1]}`],
+  [/^Update (\d+)$/, m => `Обновить (${m[1]})`],
+  [/^(\d+) of (\d+) candidates shown\.$/, m => `Показано ${m[1]} из ${m[2]}.`],
+  [/^(\d+) of 5 stars$/, m => `${m[1]} из 5 звёзд`],
+  [/^(\d) stars? or more$/, m => `${m[1]} ${pl(+m[1], ["звезда","звезды","звёзд"])} и больше`],
+  [/^(\d) stars?$/, m => `${m[1]} ${pl(+m[1], ["звезда","звезды","звёзд"])}`],
+  [/^Rated (\d) of 5\. Click the same star again to clear it\.$/, m => `Оценка ${m[1]} из 5. Нажмите ту же звезду ещё раз, чтобы снять оценку.`],
+  [/^Rated (\d) of 5$/, m => `Оценка ${m[1]} из 5`],
+  [/^Fit (\d+)$/, m => `Соотв. ${m[1]}`],
+  [/^(\d+) days$/, m => days(+m[1])],
+  [/^Department: (.+)$/, m => `Отдел: ${DEPT[m[1]] || m[1]}`],
+  [/^Lab Internship (\d{4})$/, m => role(m[0])],
+  [new RegExp(`^${ROLE_RE}\\. Applied (\\S+) via ${SOURCE_RE}$`), m => `${role(m[1])}. Подана ${m[2]}, источник: ${SOURCE[m[3]]}`],
+  [new RegExp(`^${ROLE_RE}\\. Applied (\\S+) \\((\\d+) days? ago\\)$`), m => `${role(m[1])}. Подана ${m[2]} (${days(+m[3])} назад)`],
+  [new RegExp(`^${ROLE_RE}\\. ${DEPT_RE}$`), m => `${role(m[1])}. ${DEPT[m[2]]}`],
+  [new RegExp(`^${STATUS_RE} (\\d+)$`), m => `${STATUS[m[1]]} ${m[2]}`],
+  [new RegExp(`^${STATUS_RE}: (\\d+)$`), m => `${STATUS[m[1]]}: ${m[2]}`],
+  [new RegExp(`^Status: ${STATUS_RE}$`), m => `Статус: ${STATUS[m[1]]}`],
+  [new RegExp(`^Updated (\\d+) candidates to ${STATUS_RE}$`), m => `Обновлено: ${cand(+m[1])}, статус «${STATUS[m[2]]}»`],
+  [new RegExp(`^(.+): ${STATUS_RE}$`), m => `${m[1]}: ${STATUS[m[2]]}`],
+  [new RegExp(`^(.+?), ${ROLE_RE}, ${STATUS_RE}$`), m => `${m[1]}, ${role(m[2])}, ${STATUS[m[3]]}`],
+  [new RegExp(`^Already in Hireboard: (.+?), ${ROLE_RE}, ${STATUS_RE}\\.$`), m => `Уже есть в Hireboard: ${m[1]}, ${role(m[2])}, ${STATUS[m[3]]}.`],
+  [/^Adds (.+) with status New\.$/, m => `Будет добавлен(а) ${m[1]} со статусом «Новая / Получена».`],
+  [/^Found (\d+) application emails since the last check\.$/, m => `С последней проверки найдено писем с заявками: ${m[1]}.`],
+  [/^(\d+) new candidates? added\.$/, m => `Добавлено новых кандидатов: ${m[1]}.`],
+  [/^(\d+) already in Hireboard$/, m => `${m[1]} уже есть в Hireboard`],
+  [/^(\d+) rows? without an email address$/, m => `Строк без email: ${m[1]}`],
+  [/^Read (\d+) rows from (.+)\.$/, m => `Прочитано строк из файла ${m[2]}: ${m[1]}.`],
+  [/^Reading (.+)\.\.\.$/, m => `Читаем ${m[1]}...`],
+  [/^Assessment link sent on (\S+)\. When the results email arrives, paste it here\.$/, m => `Ссылка на опросник отправлена ${m[1]}. Когда придёт письмо с результатами, вставьте его сюда.`],
+  [/^Completed (\S+)$/, m => `Пройден ${m[1]}`],
+  [/^Saved as (.+)$/, m => `Сохранится от имени: ${m[1]}`],
+  [/^Sends from (\S+)\. Edit anything before sending\.$/, m => `Отправка из ${m[1]}. Перед отправкой можно всё отредактировать.`],
+  [/^(.+)\. Paste the results email you received, or enter the scores by hand\.$/, m => `${m[1]}. Вставьте полученное письмо с результатами или введите баллы вручную.`],
+  [/^(Ownership|Collaboration|Curiosity|Resilience|Clarity) \(%\)$/, m => `${DIM[m[1]]} (%)`],
+  [/^Enter a score from 0 to 100 for (\w+)\.$/, m => `Введите балл от 0 до 100 для: ${DIM[m[1]] || m[1]}.`],
+  [/^Found (\d) of (\d) scores(.*)\.$/, m => `Найдено баллов: ${m[1]} из ${m[2]}${m[3].replace("overall score","общий балл").replace("recommendation","рекомендация").replace("date","дата")}.`],
+  [/^To (.+), from (\S+)$/, m => `Кому: ${T(m[1])}, от: ${m[2]}`],
+  [/^Live numbers from the candidate list\. (.+): (\S+) to (\S+)\.$/, m => `Актуальные данные из списка кандидатов. ${period(m[1])}: с ${m[2]} по ${m[3]}.`],
+  [/^(.+), (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})$/, m => { const p = period(m[1]); return p !== m[1] ? `${p}, с ${m[2]} по ${m[3]}` : null; }],
+  [/^Last (\d+) days$/, m => period(m[0])],
+  [/^Week of (\S+): (\d+)$/, m => `Неделя с ${m[1]}: ${m[2]}`],
+  [/^Interview for (.+) at (.+)$/, m => `Интервью на позицию «${role(m[1])}» в ${m[2]}`],
+  [/^(.+) hiring report$/, m => `${m[1]}: отчёт по найму`]
+]);
+})();
+
+/* Shared Russian texts */
+(() => {
+const {T, pl} = I18N;
+const FOOT = {
+  "data in SharePoint lists, notifications through Outlook or Teams": "данные в списках SharePoint, уведомления через Outlook или Teams",
+  "candidates in a SharePoint list, emails sent from your own Outlook mailbox": "кандидаты в списке SharePoint, письма уходят из вашего ящика Outlook",
+  "goals and progress in SharePoint lists, updates sent by Outlook or Teams": "цели и прогресс в списках SharePoint, обновления через Outlook или Teams"
+};
+I18N.add({
+  "Demo with fictional data. Reload to reset.": "Демо. Данные вымышлены.",
+  "Automation and operations consulting": "Консалтинг по автоматизации и операционным процессам",
+  "Northwind Labs": "Northwind Labs",
+  "Close": "Закрыть",
+  "Cancel": "Отмена",
+  "Done": "Готово",
+  "Signed in as": "Вы вошли как",
+  "Viewing as": "Вы смотрите как",
+  "Language": "Язык",
+  "CEO": "Генеральный директор",
+  "Engineering": "Инженерия",
+  "R&D": "R&D",
+  "Commercial": "Продажи",
+  "Operations": "Операции",
+  "Leadership": "Руководство",
+  "Software Engineer": "Инженер-программист",
+  "Embedded Engineer": "Инженер встраиваемых систем",
+  "Engineering Lead": "Руководитель инженерного отдела",
+  "R&D Lead": "Руководитель R&D",
+  "Research Scientist": "Научный сотрудник",
+  "Lab Technician": "Лаборант",
+  "Business Development": "Развитие бизнеса",
+  "Business Development Manager": "Менеджер по развитию бизнеса",
+  "People and Operations": "Персонал и операции",
+  "Head of People and Operations": "Руководитель по персоналу и операциям",
+  "Finance Manager": "Финансовый менеджер",
+  "Data Engineer": "Инженер данных",
+  "Marketing Lead": "Руководитель маркетинга",
+  "Email": "Email"
+}, [
+  [/^(\S+) runs on Microsoft 365: sign-in with Microsoft accounts, (.+)\. Designed and built by (.+)\. Want software that fits the way your team works\?$/,
+    m => `${m[1]} работает на Microsoft 365: вход через учётные записи Microsoft, ${FOOT[m[2]] || m[2]}. Разработка: ${m[3] === "Natalia Stepanova" ? "Наталья Степанова" : m[3]}. Хотите систему, которая подстроена под работу вашей команды?`],
+  [/^(\S+) demo$/, m => `${m[1]}: демо`],
+  [/^Signed in as (.+)$/, m => `Вы вошли как ${m[1]}`],
+  [/^Now viewing as (.+)$/, m => `Теперь вы смотрите как ${m[1]}`],
+  [/^(.+) \(you\)$/, m => `${m[1]} (вы)`],
+  // "Name, Job title" and "Name, Job title (admin)"
+  [/^([^,]+), (.+?)( \(admin\))?$/, m => { const t = T(m[2]); return t !== m[2] ? `${m[1]}, ${t}${m[3] ? " (админ)" : ""}` : null; }]
+]);
+})();
+
+</script>
 <script>
 /* ============================================================
    Settings for the demo. Change names here.
@@ -586,6 +897,7 @@ function render(){
     <div class="brand"><span class="mark" aria-hidden="true">${"<i></i>".repeat(9)}</span>${esc(CONFIG.product)}</div>
     <span class="co">${esc(CONFIG.company)}</span>
     <span class="demo-chip">Demo with fictional data. Reload to reset.</span>
+    ${I18N.toggle()}
     <label class="persona">Signed in as
       <select data-act="persona">${USERS.map(u=>`<option value="${u.id}" ${u.id===S.me?"selected":""}>${esc(u.name)}, ${esc(u.title)}</option>`).join("")}</select>
     </label>
@@ -811,18 +1123,40 @@ function viewReports(){
 function fileStem(){ const r = reportData(); return `${CONFIG.company.replace(/\W+/g,"")}_HiringReport_${r.from}_to_${r.to}`; }
 function exportXlsx(){
   if(!window.XLSX){ toast("The Excel library is still loading. Try again in a moment."); return; }
-  const r = reportData(), wb = XLSX.utils.book_new(), sh = rows => XLSX.utils.aoa_to_sheet(rows);
-  XLSX.utils.book_append_sheet(wb, sh([[`${CONFIG.company} hiring report`],["Period", `${r.label}, ${r.from} to ${r.to}`],["Role", S.rrole?ROLE(S.rrole).title:"All roles"],["Generated", stamp()],[],
+  const r = reportData(), wb = XLSX.utils.book_new(), sh = rows => XLSX.utils.aoa_to_sheet(rows.map(row => row.map(v => typeof v==="string" ? tr(v) : v)));
+  const add = (ws, name) => XLSX.utils.book_append_sheet(wb, ws, tr(name));
+  add(sh([[`${CONFIG.company} hiring report`],["Period", `${r.label}, ${r.from} to ${r.to}`],["Role", S.rrole?ROLE(S.rrole).title:"All roles"],["Generated", stamp()],[],
     ["Applicants", r.pool.length],["In process now", r.active],["Offers made", r.offers],["Hired", r.hired],[],["Funnel stage","Candidates","Share"], ...r.funnel.map(([l,v])=>[l,v,`${Math.round(v/r.n*100)}%`])]), "Summary");
-  XLSX.utils.book_append_sheet(wb, sh([["Stars","Candidates"], ...r.byStars, [], ["Name","Rating","Role","Status"], ...r.pool.filter(c=>c.rating).sort((a,b)=>b.rating-a.rating).map(c=>[c.name,c.rating,ROLE(c.role).title,ST(c.status).label])]), "Star ratings");
-  XLSX.utils.book_append_sheet(wb, sh([["Status","Candidates","Share"], ...r.byStatus.map(([l,v,p])=>[l,v,`${p}%`])]), "By status");
-  XLSX.utils.book_append_sheet(wb, sh([["Department","Total","Active","Offers","Hired"], ...r.byDept, [], ["Source","Applicants","Reached offer","Conversion"], ...r.bySource.map(([s,a,o,p])=>[s,a,o,`${p}%`])]), "By department");
-  XLSX.utils.book_append_sheet(wb, sh([["Name","Email","Role","Department","Status","Source","Applied","Rating","Culture score","Recommendation"],
+  add(sh([["Stars","Candidates"], ...r.byStars, [], ["Name","Rating","Role","Status"], ...r.pool.filter(c=>c.rating).sort((a,b)=>b.rating-a.rating).map(c=>[c.name,c.rating,ROLE(c.role).title,ST(c.status).label])]), "Star ratings");
+  add(sh([["Status","Candidates","Share"], ...r.byStatus.map(([l,v,p])=>[l,v,`${p}%`])]), "By status");
+  add(sh([["Department","Total","Active","Offers","Hired"], ...r.byDept, [], ["Source","Applicants","Reached offer","Conversion"], ...r.bySource.map(([s,a,o,p])=>[s,a,o,`${p}%`])]), "By department");
+  add(sh([["Name","Email","Role","Department","Status","Source","Applied","Rating","Culture score","Recommendation"],
     ...r.pool.map(c=>[c.name,c.email,ROLE(c.role).title,c.dept,ST(c.status).label,c.source,c.applied,c.rating||"",c.culture.state==="done"?c.culture.total:"",c.culture.state==="done"?c.culture.rec:""])]), "Raw data");
   XLSX.writeFile(wb, fileStem()+".xlsx");
   toast("Excel report downloaded");
 }
+function printReport(){
+  // Russian PDF: the built-in PDF fonts have no Cyrillic, so open a printable page and let the browser save it as PDF.
+  const r = reportData(), e = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  const table = (title, head, rows) => `<h2>${e(tr(title))}</h2><table><thead><tr>${head.map(h=>`<th>${e(tr(h))}</th>`).join("")}</tr></thead><tbody>${rows.map(x=>`<tr>${x.map(v=>`<td>${e(typeof v==="string"?tr(v):v)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>${e(tr(`${CONFIG.company} hiring report`))}</title>
+  <style>body{font-family:Inter,Arial,sans-serif;color:#272334;margin:32px}h1{font-size:22px;margin:0 0 4px}h2{font-size:15px;margin:22px 0 6px}p{color:#615B70;margin:0}
+  .k{display:flex;gap:10px;margin:16px 0}.k div{background:#FBF3EC;border-radius:6px;padding:10px 14px;flex:1}.k b{display:block;font-size:22px}
+  table{border-collapse:collapse;width:100%;font-size:12px}th{background:#743354;color:#FFF8F2;text-align:left;padding:6px}td{border-bottom:1px solid #EADFD6;padding:5px 6px}</style></head><body>
+  <h1>${e(tr(`${CONFIG.company} hiring report`))}</h1><p>${e(tr(`${r.label}, ${r.from} to ${r.to}`))}. ${e(tr(S.rrole?ROLE(S.rrole).title:"All roles"))}.</p>
+  <div class="k">${[["Applicants",r.pool.length],["In process now",r.active],["Offers made",r.offers],["Hired",r.hired]].map(([l,v])=>`<div><b>${v}</b>${e(tr(l))}</div>`).join("")}</div>
+  ${table("Hiring funnel",["Stage","Candidates","Share"], r.funnel.map(([l,v])=>[l,v,`${Math.round(v/r.n*100)}%`]))}
+  ${table("By status",["Status","Candidates","Share"], r.byStatus.map(([l,v,p])=>[l,v,`${p}%`]))}
+  ${table("By department",["Department","Total","Active","Offers","Hired"], r.byDept)}
+  ${table("By source",["Source","Applicants","Reached offer","Conversion"], r.bySource.map(([s,a,o,p])=>[s,a,o,`${p}%`]))}
+  ${table("Candidates",["Name","Role","Status","Source","Applied","Rating"], r.pool.map(c=>[c.name,ROLE(c.role).title,ST(c.status).label,c.source,c.applied,c.rating||""]))}
+  <script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`;
+  const w = window.open("", "_blank");
+  if(!w){ toast("Allow pop-ups to save the PDF"); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+}
 function exportPdf(){
+  if(I18N.lang==="ru"){ printReport(); return; }
   if(!window.jspdf || !window.jspdf.jsPDF){ toast("The PDF library is still loading. Try again in a moment."); return; }
   const r = reportData(), doc = new window.jspdf.jsPDF({unit:"pt", format:"a4"});
   if(typeof doc.autoTable!=="function"){ toast("The PDF library is still loading. Try again in a moment."); return; }
@@ -923,6 +1257,15 @@ function drawerHtml(c){
 function emailTemplate(kind, c){
   const role = ROLE(c.role), me = ME(), mgr = U(role.manager);
   const sign = `\n\nBest,\n${first(me.name)}`;
+  if(I18N.lang==="ru"){
+    const rt = I18N.T(role.title), hi = `Здравствуйте, ${first(c.name)}!\n\n`, bye = `\n\nС уважением,\n${first(me.name)}`;
+    if(kind==="invite") return {subject:`Интервью на позицию «${rt}» в ${CONFIG.company}`,
+      body:`${hi}Спасибо за отклик на вакансию «${rt}» в ${CONFIG.company}. Приглашаем вас на 45-минутное видеоинтервью с ${mgr.name}.\n\nПожалуйста, предложите два-три удобных времени на следующей неделе.${bye}`};
+    if(kind==="reject") return {subject:`Ваш отклик на вакансию «${rt}»`,
+      body:`${hi}Спасибо за интерес к вакансии «${rt}» и за время, которое вы уделили отклику. Мы внимательно рассмотрели вашу кандидатуру и решили не продолжать.\n\nЖелаем успехов в поиске.${bye}`};
+    return {subject:"Следующий шаг: короткий опросник",
+      body:`${hi}Следующий шаг: пожалуйста, заполните короткий опросник о стиле работы. Это займёт около 10 минут:\nhttps://careers.${CONFIG.domain}/assessment\n\nПравильных и неправильных ответов нет.${bye}`};
+  }
   if(kind==="invite") return {subject:`Interview for ${role.title} at ${CONFIG.company}`,
     body:`Hi ${first(c.name)},\n\nThank you for applying for the ${role.title} role at ${CONFIG.company}. We would like to invite you to a 45-minute video interview with ${mgr.name}.\n\nPlease reply with two or three times that suit you next week.${sign}`};
   if(kind==="reject") return {subject:`Your application for ${role.title}`,
@@ -974,7 +1317,7 @@ function modalHtml(){
   if(m.type==="xl"){
     return `<div class="mscrim" data-act="close-modal"><div class="modal" role="dialog" aria-modal="true" aria-labelledby="mt">
       <h2 id="mt">Import from Excel</h2>
-      <p style="margin-top:0">Upload a spreadsheet with the columns <b>Name, Email, Position</b> and <b>Status</b>. Emails already in ${esc(CONFIG.product)} are skipped, and existing records are never changed.</p>
+      <p style="margin-top:0">Upload a spreadsheet with the columns <b data-notr>Name, Email, Position</b> and <b data-notr>Status</b>. Emails already in ${esc(CONFIG.product)} are skipped, and existing records are never changed.</p>
       <label class="drop" id="xl-drop"><input type="file" id="xl-file" accept=".xlsx,.xls,.csv"><b>Choose an Excel file</b><br><span class="hint">or drop it here</span></label>
       <p class="hint">No file at hand? <button class="linkish" data-act="xl-sample">Download a sample file</button> with five rows, two of them already in the list.</p>
       <div id="xl-status" class="hint" role="status"></div>
@@ -1242,6 +1585,7 @@ document.addEventListener("drop", e => {
 });
 
 render();
+I18N.start();
 </script>
 </body>
 </html>
